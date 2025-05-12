@@ -8,7 +8,7 @@ import com.foliveira.WumpusGame;
 import com.foliveira.config.GameConfig;
 import com.foliveira.entities.Background;
 import com.foliveira.entities.Player;
-import com.foliveira.entities.Room;
+import com.foliveira.enviroment.Room;
 
 public class GameController {
 

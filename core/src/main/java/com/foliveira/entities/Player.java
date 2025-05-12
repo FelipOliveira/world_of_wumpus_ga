@@ -1,21 +1,39 @@
 package com.foliveira.entities;
 
 public class Player {
+
     private int locX;
     private int locY;
     private boolean isAlive;
-    private boolean hasGold;
     private boolean hasArrow;
-
-    public Player(int locX, int locY, boolean isAlive, boolean hasGold, boolean hasArrow) {
-        this.locX = locX;
-        this.locY = locY;
-        this.isAlive = isAlive;
-        this.hasGold = hasGold;
-        this.hasArrow = hasArrow;
-    }
+    private boolean hasGold;
 
     public Player() {
+        this.locX = 0;
+        this.locY = 0;
+        this.isAlive = true;
+        this.hasArrow = true;
+        this.hasGold = false;
+    }
+
+    public void moveDown() {
+
+        setLocY(getLocY() - 1);
+    }
+
+    public void moveUp() {
+
+        setLocY(getLocY() + 1);
+    }
+
+    public void moveLeft() {
+
+        setLocX(getLocX() - 1);
+    }
+
+    public void moveRight() {
+
+        setLocX(getLocX() + 1);
     }
 
     public int getLocX() {

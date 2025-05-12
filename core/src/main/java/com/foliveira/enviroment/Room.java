@@ -1,6 +1,7 @@
-package com.foliveira.entities;
+package com.foliveira.enviroment;
 
 import com.badlogic.gdx.utils.Array;
+import com.foliveira.entities.Sense;
 
 public class Room {
     private int locX;

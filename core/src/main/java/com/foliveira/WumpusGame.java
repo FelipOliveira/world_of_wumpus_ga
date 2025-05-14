@@ -10,11 +10,14 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Logger;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.foliveira.utils.GdxUtils;
+import com.foliveira.utils.manager.GameState;
+import com.foliveira.utils.manager.GameStateManager;
 
 import java.util.Random;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
-public class WumpusGame extends Game {
+public class WumpusGame extends Game implements GameStateManager.StateListener{
     //private Stage stage;
     //private Skin skin;
 
@@ -22,24 +25,6 @@ public class WumpusGame extends Game {
     private SpriteBatch batch;
 
     //=========================================================================
-    int[][] cave = new int[][]{
-        {0, 0, 0, 0},
-        {0, 0, 0, 0},
-        {0, 0, 0, 0},
-        {0, 0, 0, 0}
-    };
-    int[] player = new int[] {0,0};
-    int[] exit = new int[] {0,0};
-    int[] wumpus;
-    int[] gold;
-    int[] pit1;
-    int[] pit2;
-    int[] pit3;
-    Array<int[]> breeze = new Array<>();
-    Array<int[]> stench = new Array<>();
-    boolean _hasGold = false;
-    boolean playerIsAlive = true;
-    boolean playing = true;
 
     // world elements
     static final int EMPTY = 0;
@@ -66,8 +51,9 @@ public class WumpusGame extends Game {
     static int score = 0;
     static int worldSize = 6;
     static boolean hasGold = false;
-    static boolean lockScreen = false;
+    //static boolean lockScreen = false;
     static Random random = new Random();
+    static GameStateManager manager;
 
 
     //=========================================================================
@@ -111,26 +97,6 @@ public class WumpusGame extends Game {
         Gdx.input.setInputProcessor(stage);*/
 
         //=========================================================================
-        /*cave = new int[][]{
-            {0, 0, 0, 0},
-            {0, 0, 0, 0},
-            {0, 0, 0, 0},
-            {0, 0, 0, 0}
-        };*/
-
-        //player = new int[] {0,0};
-        //gold = new int[] {2,1};
-        //wumpus = new int[] {2,0};
-        populate();
-
-        stench.add(
-            new int[] {wumpus[0] - 1, wumpus[1]},
-            new int[] {wumpus[0], wumpus[1] - 1},
-            new int[] {wumpus[0] + 1, wumpus[1]},
-            new int[] {wumpus[0], wumpus[1] + 1}
-        );
-
-        //printCave();
 
         init();
         //=========================================================================
@@ -138,64 +104,16 @@ public class WumpusGame extends Game {
 
     @Override
     public void render() {
-        ScreenUtils.clear(0f, 0f, 0f, 1f);
+        GdxUtils.clearScreen();
         //=========================================================================
-        if (isOverlap(player, wumpus) || isOverlapPits(player)) lose();
-        if (Gdx.input.isKeyJustPressed(Input.Keys.DOWN) && player[0] + 1 < cave.length && playing) {
-            player[0] += 1;
-            printCave();
-        }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.UP) && player[0] - 1 >= 0 && playing) {
-            player[0] -= 1;
-            printCave();
-        }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.RIGHT) && player[1] + 1 < cave.length && playing) {
-            player[1] += 1;
-            printCave();
-        }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.LEFT) && player[1] - 1 >= 0 && playing) {
-            player[1] -= 1;
-            printCave();
-        }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && isOverlapGold(player) && playing) {
-            hasGold = true;
-        }
+        processAction();
 
-        if (isOverlap(player, exit) && hasGold) win();
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.R) && !playing) resetGame();
-
-        if (!lockScreen) {
-            displayPercepts();
-            processAction();
-            if (isGameOver()) {
-                System.out.println("Game Over");
-                System.out.println("your score is " + score);
-            }
-            lockScreen = false;
-        }
 
         //=========================================================================
 
         /*stage.act(Gdx.graphics.getDeltaTime());
         stage.draw();*/
-    }
-
-    private void resetGame() {
-        playerIsAlive = true;
-        playing = true;
-        populate();
-    }
-
-    private void lose() {
-        playing = false;
-        playerIsAlive = false;
-        System.out.println("You lose... Press R to restart");
-    }
-
-    private void win() {
-        playing = false;
-        System.out.println("You win!");
     }
 
     @Override
@@ -219,91 +137,9 @@ public class WumpusGame extends Game {
         return batch;
     }
 //=============================================================================================
-    public void printCave(){
-        for (int lin=0; lin< cave.length; lin++){
-            for (int col=0; col< cave.length; col++){
-                if (player[0] == lin && player[1] == col) System.out.print(" A ");
-                else if (gold[0] == lin && gold[1] == col && !hasGold) System.out.print(" G ");
-                else if (wumpus[0] == lin && wumpus[1] == col) System.out.print(" W ");
-                else if (wumpus[0] - 1 == lin && wumpus[1] == col) System.out.print(" S ");
-                else if (wumpus[0] == lin && wumpus[1] -1 == col) System.out.print(" S ");
-                else if (wumpus[0] + 1 == lin && wumpus[1] == col) System.out.print(" S ");
-                else if (wumpus[0] == lin && wumpus[1] + 1 == col) System.out.print(" S ");
-                else if (pit1[0] == lin && pit1[1] == col) System.out.print(" P ");
-                else if (pit2[0] == lin && pit2[1] == col) System.out.print(" P ");
-                else if (pit3[0] == lin && pit3[1] == col) System.out.print(" P ");
-                else System.out.print(" " + 0 + " ");
-            }
-            System.out.print("\n");
-        }
-        System.out.print("player:[" + player[0] + "][" + player[1] + "]\n");
-        System.out.print("[" + pit1[0] + "][" + pit1[1] + "]\n");
-        System.out.print("[" + pit2[0] + "][" + pit2[1] + "]\n");
-        System.out.print("[" + pit3[0] + "][" + pit3[1] + "]");
-        System.out.print("\n");
-    }
-
-    private void addWumpus(){
-        wumpus = new int[] {MathUtils.random(1, cave.length - 1), MathUtils.random(1, cave.length - 1)};
-    }
-
-    private int[] addPit(){
-        return new int[] {MathUtils.random(1, cave.length - 1), MathUtils.random(1, cave.length - 1)};
-    }
-
-    private void addGold() {
-        gold = new int[] {MathUtils.random(1, cave.length - 1), MathUtils.random(1, cave.length - 1)};
-    }
-
-    private boolean isOverlapGold(int[] obj) {
-        return gold[0] == obj[0] && gold[1] == obj[1];
-    }
-
-    private boolean isOverlap(int[] obj1, int[] obj2) {
-        return obj1[0] == obj2[0] && obj1[1] == obj2[1];
-    }
-
-    private boolean isOverlapWumpus(int[] obj) {
-        return wumpus[0] == obj[0] && wumpus[1] == obj[1];
-    }
-
-    private boolean isOverlapPits(int[] obj) {
-        return pit1[0] == obj[0] && pit1[1] == obj[1]
-            || pit2[0] == obj[0] && pit2[1] == obj[1]
-            || pit3[0] == obj[0] && pit3[1] == obj[1];
-    }
-
-    public boolean limitCave(int[] loc){
-        return loc[0] >= 0 && loc[0] < cave.length && loc[1] >= 0 && loc[1] < cave.length ;
-    }
-
-    private void populate() {
-        addPlayer();
-        addWumpus();
-
-        do {
-            addGold();
-        } while (isOverlap(gold, wumpus));
-
-        do {
-            pit1 = addPit();
-        } while (isOverlap(pit1, wumpus) || isOverlap(pit1, gold));
-
-        do {
-            pit2 = addPit();
-        } while (isOverlap(pit2, wumpus) || isOverlap(pit2, gold) || isOverlap(pit2, pit1));
-
-        do {
-            pit3 = addPit();
-        } while (isOverlap(pit3, wumpus) || isOverlap(pit3, gold) || isOverlap(pit3, pit1) || isOverlap(pit3, pit2));
-
-    }
-
-    private void addPlayer() {
-        player = new int[] {0,0};
-    }
 
     public void init() {
+
         // create the world
         world = new int[worldSize][worldSize];
         for (int i=0;i<worldSize;i++){
@@ -359,13 +195,18 @@ public class WumpusGame extends Game {
         agentDirection = 1;
         world[agentX][agentY] = AGENT;
 
-        displayWorld();
+        manager = new GameStateManager(GameState.DISPLAY);
+
+        manager.addListener(this);
+        System.out.println("World of Wumpus");
+        tick();
     }
 
     static void displayWorld(){
-        System.out.println("\nMundo de Wumpus:");
         for (int i=0;i<worldSize;i++){
             for (int j=0;j<worldSize;j++){
+
+
                 switch (world[i][j]){
                     case EMPTY:
                         System.out.print("   ");
@@ -405,23 +246,24 @@ public class WumpusGame extends Game {
                         break;
                 }
             }
+            if (i == 0) System.out.print("\tActions");
+            if (i == 1) System.out.print("\t[ARROW KEYS] move");
+            else if (i == 2) System.out.print("\t[Z] shoot arrow");
+            else if (i == 3) System.out.print("\t[X] grab gold");
             System.out.println();
         }
     }
 
     static void displayPercepts() {
-        if (lockScreen) {
-            int percepts = getPercepts();
-            System.out.print("\nYou feel... ");
-            if ((percepts & BREEZE) != 0) System.out.print("breeze, ");
-            if ((percepts & STENCH) != 0) System.out.print("stench, ");
-            if ((percepts & GLITTER) != 0) System.out.print("glitter, ");
-            if ((percepts & BUMP) != 0) System.out.print("bump, ");
-            if ((percepts & SCREAM) != 0) System.out.print("scream, ");
-            if ((percepts & BUMP) != 0) System.out.print("bump, ");
-            if (percepts == 0) System.out.print("nothing...");
-            System.out.print(".");
-        }
+        int percepts = getPercepts();
+        System.out.print("You feel... ");
+        if ((percepts & BREEZE) != 0) System.out.print("[breeze] ");
+        if ((percepts & STENCH) != 0) System.out.print("[stench] ");
+        if ((percepts & GLITTER) != 0) System.out.print("[glitter] ");
+        if ((percepts & BUMP) != 0) System.out.print("[bump] ");
+        if ((percepts & SCREAM) != 0) System.out.print("[scream] ");
+        if (percepts == 0) System.out.print("[nothing]");
+        System.out.println();
     }
 
     static int getPercepts() {
@@ -450,34 +292,30 @@ public class WumpusGame extends Game {
     }
 
     static void processAction() {
-        System.out.println("Actions:\n" +
-            "[LEFT] turn left\n" +
-            "[RIGHT] turn right\n" +
-            "[UP] move forward\n" +
-            "[A] shoot arrow\n" +
-            "[S] grab gold");
-
         if (Gdx.input.isKeyJustPressed(Input.Keys.LEFT)) {
-            turnLeft();
-            displayWorld();
+            move(agentX, agentY - 1, 2);
+            tick();
         }
         else if (Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)) {
-            turnRight();
-            displayWorld();
+            move(agentX, agentY + 1, 0);
+            tick();
         }
         else if (Gdx.input.isKeyJustPressed(Input.Keys.UP)) {
-            moveForward();
-            displayWorld();
+            move(agentX - 1, agentY, 3);
+            tick();
         }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.A)) {
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.DOWN)) {
+            move(agentX + 1, agentY, 1);
+            tick();
+        }
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.Z)) {
             shootArrow();
-            displayWorld();
+            tick();
         }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.S)) {
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
             grabGold();
-            displayWorld();
+            tick();
         }
-
     }
 
     static void turnLeft() {
@@ -487,6 +325,90 @@ public class WumpusGame extends Game {
 
     static void turnRight() {
         agentDirection = (agentDirection + 1) % 4;
+    }
+
+    static void moveLeft() {
+        agentDirection = 2;
+        int newX = agentX;
+        int newY = agentY - 1;
+
+        if (world[newX][newY] != WALL) {
+            world[agentX][agentY] = EMPTY;
+            agentX = newX;
+            agentY = newY;
+            world[agentX][agentY] = AGENT;
+            if (world[agentX][agentY] == PIT) {
+                System.out.println("You fell on a pit!");
+            } else if (world[agentX][agentY] == WUMPUS) {
+                System.out.println("You got caught by the Wumpus!");
+            }
+        } else {
+            System.out.println("You hit a wall");
+        }
+        //displayPercepts();
+    }
+
+    static void moveRight() {
+        agentDirection = 0;
+        int newX = agentX;
+        int newY = agentY + 1;
+
+        if (world[newX][newY] != WALL) {
+            world[agentX][agentY] = EMPTY;
+            agentX = newX;
+            agentY = newY;
+            world[agentX][agentY] = AGENT;
+            if (world[agentX][agentY] == PIT) {
+                System.out.println("You fell on a pit!");
+            } else if (world[agentX][agentY] == WUMPUS) {
+                System.out.println("You got caught by the Wumpus!");
+            }
+        } else {
+            System.out.println("You hit a wall");
+            //displayPercepts();
+        }
+    }
+
+    static void moveUp() {
+        agentDirection = 3;
+        int newX = agentX - 1;
+        int newY = agentY;
+
+        if (world[newX][newY] != WALL) {
+            world[agentX][agentY] = EMPTY;
+            agentX = newX;
+            agentY = newY;
+            world[agentX][agentY] = AGENT;
+            if (world[agentX][agentY] == PIT) {
+                System.out.println("You fell on a pit!");
+            } else if (world[agentX][agentY] == WUMPUS) {
+                System.out.println("You got caught by the Wumpus!");
+            }
+        } else {
+            System.out.println("You hit a wall");
+            //displayPercepts();
+        }
+    }
+
+    static void moveDown() {
+        agentDirection = 1;
+        int newX = agentX + 1;
+        int newY = agentY;
+
+        if (world[newX][newY] != WALL) {
+            world[agentX][agentY] = EMPTY;
+            agentX = newX;
+            agentY = newY;
+            world[agentX][agentY] = AGENT;
+            if (world[agentX][agentY] == PIT) {
+                System.out.println("You fell on a pit!");
+            } else if (world[agentX][agentY] == WUMPUS) {
+                System.out.println("You got caught by the Wumpus!");
+            }
+        } else {
+            System.out.println("You hit a wall");
+            //displayPercepts();
+        }
     }
 
     static void moveForward() {
@@ -522,6 +444,24 @@ public class WumpusGame extends Game {
         } else {
             System.out.println("You hit a wall");
             displayPercepts();
+        }
+    }
+
+    static void move(int newX, int newY, int direction) {
+        agentDirection = direction;
+        if (world[newX][newY] != WALL) {
+            world[agentX][agentY] = EMPTY;
+            agentX = newX;
+            agentY = newY;
+            world[agentX][agentY] = AGENT;
+            if (world[agentX][agentY] == PIT) {
+                System.out.println("You fell on a pit!");
+            } else if (world[agentX][agentY] == WUMPUS) {
+                System.out.println("You got caught by the Wumpus!");
+            }
+        } else {
+            System.out.println("You hit a wall");
+            //displayPercepts();
         }
     }
 
@@ -612,7 +552,38 @@ public class WumpusGame extends Game {
     }
 
     static boolean isGameOver() {
-        if (world[agentX][agentY] == PIT || world[agentX][agentY] == WUMPUS) return true;
-        return false;
+        return world[agentX][agentY] == PIT || world[agentX][agentY] == WUMPUS;
     }
+
+    static void tick() {
+        displayWorld();
+        displayPercepts();
+        //processAction();
+        if (isGameOver()) {
+            System.out.println("Game Over");
+            System.out.println("your score is " + score);
+        }
+    }
+
+    @Override
+    public void onStageChanged(GameState newState) {
+        switch (manager.getCurrentState()){
+            case DISPLAY:
+                displayWorld();
+            case SENSE:
+                displayPercepts();
+                break;
+            case TRAP:
+
+                break;
+            case ACTION:
+
+                break;
+            case MOVE:
+
+                break;
+        }
+    }
+
+
 }

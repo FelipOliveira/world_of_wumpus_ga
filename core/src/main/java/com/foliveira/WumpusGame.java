@@ -48,6 +48,7 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
     static int agentDirection; // (0: right, 1: down, 2: left, 3: up)
     static boolean hasArrow = true;
     static boolean wumpusAlive = true;
+    static boolean agentAlive = true;
     static int score = 0;
     static int worldSize = 6;
     static boolean hasGold = false;
@@ -205,8 +206,6 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
     static void displayWorld(){
         for (int i=0;i<worldSize;i++){
             for (int j=0;j<worldSize;j++){
-
-
                 switch (world[i][j]){
                     case EMPTY:
                         System.out.print("   ");
@@ -292,182 +291,70 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
     }
 
     static void processAction() {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.LEFT)) {
-            move(agentX, agentY - 1, 2);
-            tick();
+        if (agentAlive) {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.LEFT)) {
+                rotate(agentX, agentY - 1, 2);
+                tick();
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)) {
+                rotate(agentX, agentY + 1, 0);
+                tick();
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.UP)) {
+                rotate(agentX - 1, agentY, 3);
+                tick();
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.DOWN)) {
+                rotate(agentX + 1, agentY, 1);
+                tick();
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.Z)) {
+                shootArrow();
+                tick();
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
+                grabGold();
+                tick();
+            }
         }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)) {
-            move(agentX, agentY + 1, 0);
-            tick();
-        }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.UP)) {
-            move(agentX - 1, agentY, 3);
-            tick();
-        }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.DOWN)) {
-            move(agentX + 1, agentY, 1);
-            tick();
-        }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.Z)) {
-            shootArrow();
-            tick();
-        }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
-            grabGold();
-            tick();
-        }
+
     }
 
-    static void turnLeft() {
-        agentDirection = (agentDirection + 3) % 4;
-        score -= 1;
-    }
-
-    static void turnRight() {
-        agentDirection = (agentDirection + 1) % 4;
-    }
-
-    static void moveLeft() {
-        agentDirection = 2;
-        int newX = agentX;
-        int newY = agentY - 1;
-
-        if (world[newX][newY] != WALL) {
+    static void move(int newX, int newY) {
+        score -= 2;
+        if (world[newX][newY] == WALL) {
+            System.out.println("You hit a wall");
+        }else {
+            if (world[newX][newY] == GOLD) {
+                System.out.println("You found gold!");
+                score += 1000;
+                hasGold = true;
+            } else if (world[newX][newY] == PIT) {
+                System.out.println("You fell on a pit!");
+                agentAlive = false;
+            } else if (world[newX][newY] == WUMPUS) {
+                System.out.println("You got caught by the Wumpus!");
+                agentAlive = false;
+            }
             world[agentX][agentY] = EMPTY;
             agentX = newX;
             agentY = newY;
             world[agentX][agentY] = AGENT;
-            if (world[agentX][agentY] == PIT) {
-                System.out.println("You fell on a pit!");
-            } else if (world[agentX][agentY] == WUMPUS) {
-                System.out.println("You got caught by the Wumpus!");
-            }
-        } else {
-            System.out.println("You hit a wall");
-        }
-        //displayPercepts();
-    }
-
-    static void moveRight() {
-        agentDirection = 0;
-        int newX = agentX;
-        int newY = agentY + 1;
-
-        if (world[newX][newY] != WALL) {
-            world[agentX][agentY] = EMPTY;
-            agentX = newX;
-            agentY = newY;
-            world[agentX][agentY] = AGENT;
-            if (world[agentX][agentY] == PIT) {
-                System.out.println("You fell on a pit!");
-            } else if (world[agentX][agentY] == WUMPUS) {
-                System.out.println("You got caught by the Wumpus!");
-            }
-        } else {
-            System.out.println("You hit a wall");
-            //displayPercepts();
         }
     }
 
-    static void moveUp() {
-        agentDirection = 3;
-        int newX = agentX - 1;
-        int newY = agentY;
-
-        if (world[newX][newY] != WALL) {
-            world[agentX][agentY] = EMPTY;
-            agentX = newX;
-            agentY = newY;
-            world[agentX][agentY] = AGENT;
-            if (world[agentX][agentY] == PIT) {
-                System.out.println("You fell on a pit!");
-            } else if (world[agentX][agentY] == WUMPUS) {
-                System.out.println("You got caught by the Wumpus!");
-            }
-        } else {
-            System.out.println("You hit a wall");
-            //displayPercepts();
+    static void rotate(int newX, int newY, int newAgentDirection) {
+        if (agentDirection == newAgentDirection) {
+            move(newX, newY);
+        }
+        else {
+            score -= 1;
+            agentDirection = newAgentDirection;
         }
     }
 
-    static void moveDown() {
-        agentDirection = 1;
-        int newX = agentX + 1;
-        int newY = agentY;
+    static void moveArrow() {
 
-        if (world[newX][newY] != WALL) {
-            world[agentX][agentY] = EMPTY;
-            agentX = newX;
-            agentY = newY;
-            world[agentX][agentY] = AGENT;
-            if (world[agentX][agentY] == PIT) {
-                System.out.println("You fell on a pit!");
-            } else if (world[agentX][agentY] == WUMPUS) {
-                System.out.println("You got caught by the Wumpus!");
-            }
-        } else {
-            System.out.println("You hit a wall");
-            //displayPercepts();
-        }
-    }
-
-    static void moveForward() {
-        int newX = agentX;
-        int newY = agentY;
-
-        switch (agentDirection) {
-            case 0: //right
-                newX++;
-                break;
-            case 1: //down
-                newY++;
-                break;
-            case 2: //left
-                newX--;
-                break;
-            case 3: //up
-                newY--;
-                break;
-        }
-        score -= 1;
-
-        if (world[newX][newY] != WALL) {
-            world[agentX][agentY] = EMPTY;
-            agentX = newX;
-            agentY = newY;
-            world[agentX][agentY] = AGENT;
-            if (world[agentX][agentY] == PIT) {
-                System.out.println("You fell on a pit!");
-            } else if (world[agentX][agentY] == WUMPUS) {
-                System.out.println("You got caught by the Wumpus!");
-            }
-        } else {
-            System.out.println("You hit a wall");
-            displayPercepts();
-        }
-    }
-
-    static void move(int newX, int newY, int direction) {
-        agentDirection = direction;
-        if (world[newX][newY] != WALL) {
-            world[agentX][agentY] = EMPTY;
-            agentX = newX;
-            agentY = newY;
-            world[agentX][agentY] = AGENT;
-            if (world[agentX][agentY] == PIT) {
-                System.out.println("You fell on a pit!");
-            } else if (world[agentX][agentY] == WUMPUS) {
-                System.out.println("You got caught by the Wumpus!");
-            }
-        } else {
-            System.out.println("You hit a wall");
-            //displayPercepts();
-        }
     }
 
     static void shootArrow() {
         if (hasArrow) {
-            hasArrow = false;
+            //hasArrow = false;
             score -= 10;
             System.out.println("You shot the arrow!");
             int x = agentX;
@@ -475,39 +362,27 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
 
             switch (agentDirection) {
                 case 0: // right
-                    for (int i=x+1;i<worldSize;i++) {
-                        if (world[i][y] == WUMPUS) {
-                            System.out.println("You hit the Wumpus!");
+                    for (int i=x;i<=worldSize;i++) {
+                        if (world[x][i] == WUMPUS) {
+                            System.out.println("You hear a [SCREAM]!");
                             wumpusAlive = false;
-                            world[i][y] = EMPTY;
+                            world[x][i] = EMPTY;
                             score += 500;
                             return;
                         }
-                        if (world[i][y] == WALL) {
+                        if (world[x][i] == WALL) {
                             System.out.println("Your arrow hit the wall!");
+                            if (world[x][i-1] == EMPTY){
+                                world[x][i-1] = ARROW;
+                            }
                             return;
                         }
                     }
                     break;
                 case 1: // down
-                    for (int i=y+1;i<worldSize;i++) {
-                        if (world[x][i] == WUMPUS) {
-                            System.out.println("You hit the Wumpus!");
-                            wumpusAlive = false;
-                            world[x][i] = EMPTY;
-                            score += 500;
-                            return;
-                        }
-                        if (world[x][i] == WALL) {
-                            System.out.println("Your arrow hit the wall!");
-                            return;
-                        }
-                    }
-                    break;
-                case 2: // left
-                    for (int i=x-1;i>0;i--) {
+                    for (int i=y;i<worldSize;i++) {
                         if (world[i][y] == WUMPUS) {
-                            System.out.println("You hit the Wumpus!");
+                            System.out.println("You hear a [SCREAM]!");
                             wumpusAlive = false;
                             world[i][y] = EMPTY;
                             score += 500;
@@ -515,12 +390,15 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
                         }
                         if (world[i][y] == WALL) {
                             System.out.println("Your arrow hit the wall!");
+                            if (world[i-1][y] == EMPTY){
+                                world[i-1][y] = ARROW;
+                            }
                             return;
                         }
                     }
                     break;
-                case 3: // up
-                    for (int i=y-1;i>=0;i--) {
+                case 2: // left
+                    for (int i=x;i>0;i--) {
                         if (world[x][i] == WUMPUS) {
                             System.out.println("You hit the Wumpus!");
                             wumpusAlive = false;
@@ -530,6 +408,27 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
                         }
                         if (world[x][i] == WALL) {
                             System.out.println("Your arrow hit the wall!");
+                            if (world[x][i+1] == EMPTY){
+                                world[x][i+1] = ARROW;
+                            }
+                            return;
+                        }
+                    }
+                    break;
+                case 3: // up
+                    for (int i=y;i>=0;i--) {
+                        if (world[i][y] == WUMPUS) {
+                            System.out.println("You hear a [SCREAM]!");
+                            wumpusAlive = false;
+                            world[i][y] = EMPTY;
+                            score += 500;
+                            return;
+                        }
+                        if (world[i][y] == WALL) {
+                            System.out.println("Your arrow hit the wall!");
+                            if (world[i+1][y] == EMPTY){
+                                world[i+1][y] = ARROW;
+                            }
                             return;
                         }
                     }
@@ -551,18 +450,20 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
         }
     }
 
-    static boolean isGameOver() {
-        return world[agentX][agentY] == PIT || world[agentX][agentY] == WUMPUS;
+    static void gameOver() {
+        System.out.println("Game Over. Your score is " + score);
     }
 
     static void tick() {
-        displayWorld();
-        displayPercepts();
-        //processAction();
-        if (isGameOver()) {
-            System.out.println("Game Over");
-            System.out.println("your score is " + score);
+        if (isAgentWon() || !agentAlive) gameOver();
+        if (agentAlive) {
+            displayWorld();
+            displayPercepts();
         }
+    }
+
+    static boolean isAgentWon(){
+        return agentX == 1 && agentY == 1 && agentAlive && hasGold;
     }
 
     @Override

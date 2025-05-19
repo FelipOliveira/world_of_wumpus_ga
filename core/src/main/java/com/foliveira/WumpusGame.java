@@ -10,10 +10,13 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Logger;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.foliveira.entities.World;
+import com.foliveira.entities.WorldObject;
 import com.foliveira.utils.GdxUtils;
 import com.foliveira.utils.manager.GameState;
 import com.foliveira.utils.manager.GameStateManager;
 
+import java.util.List;
 import java.util.Random;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
@@ -57,6 +60,8 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
     static GameStateManager manager;
 
 
+    World objWorld = new World(worldSize);
+
     //=========================================================================
 
     @Override
@@ -99,7 +104,7 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
 
         //=========================================================================
 
-        init();
+        //init();
         //=========================================================================
     }
 
@@ -107,7 +112,7 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
     public void render() {
         GdxUtils.clearScreen();
         //=========================================================================
-        processAction();
+        objWorld.processAction();
 
 
 
@@ -380,6 +385,22 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
                     }
                     break;
                 case 1: // down
+                    /*for (int i=y;i<worldSize;i++) {
+                        if (world[i][y] == WUMPUS) {
+                            System.out.println("You hear a [SCREAM]!");
+                            wumpusAlive = false;
+                            world[i][y] = EMPTY;
+                            score += 500;
+                            return;
+                        }
+                        if (world[i][y] == WALL) {
+                            System.out.println("Your arrow hit the wall!");
+                            if (world[i-1][y] == EMPTY){
+                                world[i-1][y] = ARROW;
+                            }
+                            return;
+                        }
+                    }*/
                     for (int i=y;i<worldSize;i++) {
                         if (world[i][y] == WUMPUS) {
                             System.out.println("You hear a [SCREAM]!");
@@ -398,9 +419,9 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
                     }
                     break;
                 case 2: // left
-                    for (int i=x;i>0;i--) {
+                    for (int i=x;i>=0;i--) {
                         if (world[x][i] == WUMPUS) {
-                            System.out.println("You hit the Wumpus!");
+                            System.out.println("You hear a [SCREAM]!");
                             wumpusAlive = false;
                             world[x][i] = EMPTY;
                             score += 500;

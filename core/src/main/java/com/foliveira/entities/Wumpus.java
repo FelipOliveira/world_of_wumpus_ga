@@ -1,18 +1,22 @@
 package com.foliveira.entities;
 
-public class Wumpus extends CaveObject {
+public class Wumpus extends AbstractWorldObject {
     private boolean alive;
 
-    public Wumpus(int locX, int locY) {
-        super(locX, locY);
-        this.alive = true;
+    public Wumpus(boolean alive) {
+        this.alive = alive;
     }
 
-    public boolean isAlive() {
-        return alive;
+    @Override
+    public void display() {
+        System.out.print(alive ? " W " : "   ");
     }
 
     public void setAlive(boolean alive) {
         this.alive = alive;
+    }
+
+    public boolean isAlive() {
+        return alive;
     }
 }

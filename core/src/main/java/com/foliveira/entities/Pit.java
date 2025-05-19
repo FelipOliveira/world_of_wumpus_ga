@@ -1,7 +1,12 @@
 package com.foliveira.entities;
 
-public class Pit extends CaveObject{
-    public Pit(int locX, int locY) {
-        super(locX, locY);
+public class Pit extends AbstractWorldObject {
+
+    public Pit() {
+    }
+
+    @Override
+    public void display() {
+        System.out.print(" P ");
     }
 }

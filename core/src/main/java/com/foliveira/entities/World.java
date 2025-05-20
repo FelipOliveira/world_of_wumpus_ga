@@ -185,7 +185,7 @@ public class World {
 
     public void shootArrow() {
         if (agent.isHasArrow()) {
-            //hasArrow = false;
+            agent.setHasArrow(false);
             agent.setScore(agent.getScore()-10);
             System.out.println("You shot the arrow!");
             int newX = agent.getX();
@@ -194,7 +194,8 @@ public class World {
             arrow.setDirection(agent.getDirection());
             switch (arrow.getDirection()) {
                 case 0: // right
-                    for (int i=newX;i<=size;i++) {
+                    for (int i=newY;i<=size;i++) {
+                        System.out.println("x: " + newX + " y: " + i);
                         if (map[newX][i] instanceof Wumpus) {
                             System.out.println("You hear a [SCREAM]!");
                             wumpus.setAlive(false);
@@ -213,23 +214,8 @@ public class World {
                     }
                     break;
                 case 1: // down
-                    /*for (int i=y;i<worldSize;i++) {
-                        if (world[i][y] == WUMPUS) {
-                            System.out.println("You hear a [SCREAM]!");
-                            wumpusAlive = false;
-                            world[i][y] = EMPTY;
-                            agent.setScore(agent.getScore()+100);
-                            return;
-                        }
-                        if (world[i][y] == WALL) {
-                            System.out.println("Your arrow hit the wall!");
-                            if (world[i-1][y] == EMPTY){
-                                world[i-1][y] = ARROW;
-                            }
-                            return;
-                        }
-                    }*/
-                    for (int i=newY;i<size;i++) {
+                    for (int i=newX;i<=size;i++) {
+                        System.out.println("x: " + i + " y: " + newY);
                         if (map[i][newY] instanceof Wumpus) {
                             System.out.println("You hear a [SCREAM]!");
                             wumpus.setAlive(false);
@@ -239,7 +225,7 @@ public class World {
                         }
                         if (map[i][newY] instanceof Wall) {
                             System.out.println("Your arrow hit the wall!");
-                            if (map[i-1][newY] instanceof Empty){
+                            if (map[i][newY] instanceof Empty){
                                 arrow.setX(i-1);
                                 arrow.setY(newY);
                             }
@@ -247,8 +233,10 @@ public class World {
                         }
                     }
                     break;
+
                 case 2: // left
-                    for (int i=newX;i>=0;i--) {
+                    for (int i=newY;i>=0;i--) {
+                        System.out.println("x: " + newX + " y: " + i);
                         if (map[newX][i] instanceof Wumpus) {
                             System.out.println("You hear a [SCREAM]!");
                             wumpus.setAlive(false);
@@ -260,14 +248,15 @@ public class World {
                             System.out.println("Your arrow hit the wall!");
                             if (map[newX][i+1] instanceof Empty){
                                 arrow.setX(newX);
-                                arrow.setX(i+1);
+                                arrow.setY(i+1);
                             }
                             return;
                         }
                     }
                     break;
                 case 3: // up
-                    for (int i=newY;i>=0;i--) {
+                    for (int i=newX;i>=0;i--) {
+                        System.out.println("x: " + i + " y: " + newY);
                         if (map[i][newY] instanceof Wumpus) {
                             System.out.println("You hear a [SCREAM]!");
                             wumpus.setAlive(false);
@@ -286,7 +275,6 @@ public class World {
                     }
                     break;
             }
-            System.out.println("You lose your arrow!");
         } else {
             System.out.println("Your have no arrow left");
         }

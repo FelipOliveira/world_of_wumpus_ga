@@ -10,6 +10,7 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Logger;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.foliveira.config.GameConfig;
 import com.foliveira.entities.World;
 import com.foliveira.entities.WorldObject;
 import com.foliveira.utils.GdxUtils;
@@ -60,7 +61,7 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
     static GameStateManager manager;
 
 
-    World objWorld = new World(worldSize);
+    World objWorld = new World(GameConfig.WORLD_SIZE);
 
     //=========================================================================
 
@@ -455,7 +456,6 @@ public class WumpusGame extends Game implements GameStateManager.StateListener{
                     }
                     break;
             }
-            System.out.println("You lose your arrow!");
         } else {
             System.out.println("Your have no arrow left");
         }

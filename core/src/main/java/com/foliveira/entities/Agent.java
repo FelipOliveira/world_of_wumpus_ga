@@ -66,6 +66,7 @@ public class Agent extends AbstractWorldObject {
             gold.setTaken(true);
         } else {
             System.out.println("You found nothing!");
+            score -= 10;
         }
     }
 
@@ -92,111 +93,6 @@ public class Agent extends AbstractWorldObject {
 
         return percepts;
     }
-
-    /*public void shootArrow(World world) {
-        if (hasArrow) {
-            var map = world.getMap();
-            //hasArrow = false;
-            score -= 10;
-            System.out.println("You shot the arrow!");
-            int newX = ;
-            int newY = agentY;
-
-            switch (direction) {
-                case 0: // right
-                    for (int i=newX;i<=world.getSize();i++) {
-                        if (map[newX][i] instanceof Wumpus) {
-                            System.out.println("You hear a [SCREAM]!");
-                            world.getWumpus = false;
-                            map[newX][i] = new Empty();
-                            score += 100;
-                            return;
-                        }
-                        if (map[newX][i] instanceof Wall) {
-                            System.out.println("Your arrow hit the wall!");
-                            if (map[newX][i-1] == EMPTY){
-                                map[newX][i-1] = ARROW;
-                            }
-                            return;
-                        }
-                    }
-                    break;
-                case 1: // down
-                    *//*for (int i=y;i<worldSize;i++) {
-                        if (world[i][y] == WUMPUS) {
-                            System.out.println("You hear a [SCREAM]!");
-                            wumpusAlive = false;
-                            world[i][y] = EMPTY;
-                            score += 500;
-                            return;
-                        }
-                        if (world[i][y] == WALL) {
-                            System.out.println("Your arrow hit the wall!");
-                            if (world[i-1][y] == EMPTY){
-                                world[i-1][y] = ARROW;
-                            }
-                            return;
-                        }
-                    }*//*
-                    for (int i=y;i<worldSize;i++) {
-                        if (world[i][y] == WUMPUS) {
-                            System.out.println("You hear a [SCREAM]!");
-                            wumpusAlive = false;
-                            world[i][y] = EMPTY;
-                            score += 500;
-                            return;
-                        }
-                        if (world[i][y] == WALL) {
-                            System.out.println("Your arrow hit the wall!");
-                            if (world[i-1][y] == EMPTY){
-                                world[i-1][y] = ARROW;
-                            }
-                            return;
-                        }
-                    }
-                    break;
-                case 2: // left
-                    for (int i=newX;i>=0;i--) {
-                        if (world[newX][i] == WUMPUS) {
-                            System.out.println("You hear a [SCREAM]!");
-                            wumpusAlive = false;
-                            world[newX][i] = EMPTY;
-                            score += 500;
-                            return;
-                        }
-                        if (world[newX][i] == WALL) {
-                            System.out.println("Your arrow hit the wall!");
-                            if (world[newX][i+1] == EMPTY){
-                                world[newX][i+1] = ARROW;
-                            }
-                            return;
-                        }
-                    }
-                    break;
-                case 3: // up
-                    for (int i=y;i>=0;i--) {
-                        if (world[i][y] == WUMPUS) {
-                            System.out.println("You hear a [SCREAM]!");
-                            wumpusAlive = false;
-                            world[i][y] = EMPTY;
-                            score += 500;
-                            return;
-                        }
-                        if (world[i][y] == WALL) {
-                            System.out.println("Your arrow hit the wall!");
-                            if (world[i+1][y] == EMPTY){
-                                world[i+1][y] = ARROW;
-                            }
-                            return;
-                        }
-                    }
-                    break;
-            }
-            System.out.println("You lose your arrow!");
-        } else {
-            System.out.println("Your have no arrow left");
-        }
-    }*/
 
     public int getDirection() {
         return direction;

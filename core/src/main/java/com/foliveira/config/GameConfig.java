@@ -31,6 +31,17 @@ public class GameConfig {
     public static final float OBSTACLE_BOUNDS_RADIUS = 0.3f;  //world units
     public static final float OBSTACLE_SIZE = 2 * OBSTACLE_BOUNDS_RADIUS;  //world units
 
+    public static final int WORLD_SIZE = 6;
+
+    // world elements
+    public static final int EMPTY = 0;
+    public static final int WALL = 1;
+    public static final int GOLD = 2;
+    public static final int WUMPUS = 4;
+    public static final int PIT = 8;
+    public static final int ARROW = 16;
+    public static final int AGENT = 32;
+
     private GameConfig() {
     }
 }

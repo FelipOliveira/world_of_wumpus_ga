@@ -2,6 +2,7 @@ package com.foliveira.entities;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.foliveira.commom.PathFinder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,7 @@ public class World {
     private Arrow arrow;
     private final Random random = new Random();
     private AbstractWorldObject[][] map;
+    private int[][] dungeon;
 
     public World(int size) {
         this.size = size;
@@ -25,6 +27,7 @@ public class World {
     }
 
     private void init(){
+        // create a new empty map
         map = new AbstractWorldObject[size][size];
         for (int i=0;i<size;i++){
             for (int j=0;j<size;j++){
@@ -33,42 +36,53 @@ public class World {
             }
         }
 
-        wumpus = new Wumpus(true);
-        do {
-            int x = random.nextInt(size);
-            int y = random.nextInt(size);
-            if (map[x][y] instanceof Empty && (x != 1 && y != 1)){
-                map[x][y] = wumpus;
-                break;
-            }
-        } while (true);
-
-        // put the pits
-        int numPits = 3;
-        for (int i=0;i<numPits;i++){
-            do {
-                int x = random.nextInt(size);
-                int y = random.nextInt(size);
-                if (map[x][y] instanceof Empty && (x != 1 && y != 1)){
-                    map[x][y] = new Pit();
-                    break;
-                }
-            } while (true);
-        }
-
-        // put the gold
-        do {
-            int x = random.nextInt(size);
-            int y = random.nextInt(size);
-            if (map[x][y] instanceof Empty && (x != 1 && y != 1)){
-                gold = new Gold(x, y, false);
-                break;
-            }
-        } while (true);
-
         agent = new Agent(1,1,0);
         arrow = new Arrow(agent.getX(),agent.getY());
         map[agent.getX()][agent.getY()] = agent;
+
+        int wumpusX, wumpusY;
+
+        boolean validMap = true;
+        while (validMap) {// populate the map
+            wumpus = new Wumpus(true);
+            do {
+                int x = random.nextInt(size);
+                int y = random.nextInt(size);
+                if (map[x][y] instanceof Empty && (x != 1 && y != 1)) {
+                    map[x][y] = wumpus;
+                    wumpusX = x;
+                    wumpusY = y;
+                    break;
+                }
+            } while (true);
+
+            // put the pits
+            int numPits = 3;
+            for (int i = 0; i < numPits; i++) {
+                do {
+                    int x = random.nextInt(size);
+                    int y = random.nextInt(size);
+                    if (map[x][y] instanceof Empty && (x != 1 && y != 1)) {
+                        map[x][y] = new Pit();
+                        break;
+                    }
+                } while (true);
+            }
+
+            // put the gold
+            do {
+                int x = random.nextInt(size);
+                int y = random.nextInt(size);
+                if (map[x][y] instanceof Empty && (x != 1 && y != 1)) {
+                    gold = new Gold(x, y, false);
+                    break;
+                }
+            } while (true);
+
+            validMap = PathFinder.hasValidPathToGold(agent.getX(), agent.getY(), gold.getX(), gold.getY(), map) &&
+                PathFinder.hasValidPathToWumpus(agent.getX(), agent.getY(), wumpusX, wumpusY, map);
+            System.out.println(validMap);
+        }
         display();
     }
 
@@ -81,7 +95,7 @@ public class World {
                     map[i][j].display();
                 }
             }
-            if (i == 0) System.out.print("\tActions");
+            if (i == 0) System.out.print("\tACTIONS:");
             if (i == 1) System.out.print("\t[LEFT] TURN LEFT");
             if (i == 2) System.out.print("\t[RIGHT] TURN RIGHT");
             if (i == 3) System.out.print("\t[UP] MOVE FORWARD");

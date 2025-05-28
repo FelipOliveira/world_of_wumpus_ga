@@ -20,22 +20,22 @@ public class GameScreen implements Screen {
     @Override
     public void show() {
         controller = new GameController(game);
-        //renderer = new GameRenderer(game.getBatch(), assetManager, controller);
+        renderer = new GameRenderer(game.getBatch(), assetManager, controller);
     }
 
     @Override
     public void render(float delta) {
-       /* controller.update(delta);
+        controller.update(delta);
         renderer.render(delta);
 
-        if (controller.isGameOver()) {
+        /*if (controller.isGameOver()) {
             game.setScreen(new MenuScreen(game));
         }*/
     }
 
     @Override
     public void resize(int width, int height) {
-        //renderer.resize(width, height);
+        renderer.resize(width, height);
     }
 
     @Override
@@ -55,6 +55,6 @@ public class GameScreen implements Screen {
 
     @Override
     public void dispose() {
-        //renderer.dispose();
+        renderer.dispose();
     }
 }

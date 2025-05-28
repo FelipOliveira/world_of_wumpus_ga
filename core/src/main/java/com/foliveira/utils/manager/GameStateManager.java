@@ -42,23 +42,15 @@ public class GameStateManager {
         }
     }
 
-    public void enterSense() {
-        setCurrentState(GameState.SENSE);
-    }
-
-    public void enterTrap() {
-        setCurrentState(GameState.TRAP);
+    public void enterPerception() {
+        setCurrentState(GameState.PERCEPTION);
     }
 
     public void enterAction() {
         setCurrentState(GameState.ACTION);
     }
 
-    public void enterMove() {
-        setCurrentState(GameState.MOVE);
-    }
-
-    public void enterDisplay() {
-        setCurrentState(GameState.DISPLAY);
+    public void enterValidation() {
+        setCurrentState(GameState.VALIDATION);
     }
 }

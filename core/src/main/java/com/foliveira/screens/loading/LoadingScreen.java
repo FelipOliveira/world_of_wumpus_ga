@@ -45,10 +45,10 @@ public class LoadingScreen extends ScreenAdapter {
         viewport = new FitViewport(GameConfig.HUD_WIDTH, GameConfig.HUD_HEIGHT, camera);
         renderer = new ShapeRenderer();
 
-        assetManager.load(AssetDescriptors.FONT);
+        assetManager.load(AssetDescriptors.FONT);/*
         assetManager.load(AssetDescriptors.GAME_ATLAS);
         assetManager.load(AssetDescriptors.UI_SKIN);
-        assetManager.load(AssetDescriptors.HIT_SOUND);
+        assetManager.load(AssetDescriptors.HIT_SOUND);*/
     }
 
     @Override
@@ -78,7 +78,7 @@ public class LoadingScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         renderer.dispose();
-        //assetManager.dispose();
+        assetManager.dispose();
     }
 
     // private methods

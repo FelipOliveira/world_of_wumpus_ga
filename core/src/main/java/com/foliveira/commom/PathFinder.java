@@ -72,4 +72,5 @@ public class PathFinder {
     public static boolean hasValidPathToWumpus(int startX, int startY, int endX, int endY, AbstractWorldObject[][] map) {
         return findPath(startX, startY, endX, endY, map);
     }
+
 }

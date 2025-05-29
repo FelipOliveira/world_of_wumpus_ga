@@ -7,12 +7,12 @@ public class GameConfig {
     public static final float HUD_WIDTH = 400f; //world units
     public static final float HUD_HEIGHT = 400f; //world units
 
-    public static final float WORLD_WIDTH = 32f; //world_units
-    public static final float WORLD_HEIGHT = 32f;//world_units
+    public static final float WORLD_WIDTH = 320f; //world_units
+    public static final float WORLD_HEIGHT = 320f;//world_units
     public static final float WORLD_CENTER_X = WORLD_WIDTH/2;
     public static final float WORLD_CENTER_Y = WORLD_HEIGHT/2;
 
-    public static final int WORLD_SIZE = 6;
+    public static final int MAP_SIZE = 6;
 
     // world elements
     public static final int EMPTY = 0;
@@ -26,8 +26,8 @@ public class GameConfig {
     public static final int MOVE_FORWARD = 1;
     public static final int ROTATE_LEFT = 2;
     public static final int ROTATE_RIGHT = 3;
-    public static final int GRAB_GOLD = 4;
-    public static final int ACTION = 5;
+    public static final int SEARCH = 4;
+    public static final int SPECIAL = 5;
 
     //perceptions
     public static final int BREEZE = 1;

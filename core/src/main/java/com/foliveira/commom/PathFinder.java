@@ -51,8 +51,8 @@ public class PathFinder {
         for (int i=0;i<4;i++) {
             int newX = x + dx[i];
             int newY = y + dy[i];
-            if ((newX>=0 && newX<GameConfig.WORLD_SIZE &&
-                newY>=0 && newY<GameConfig.WORLD_SIZE) &&
+            if ((newX>=0 && newX<GameConfig.MAP_SIZE &&
+                newY>=0 && newY<GameConfig.MAP_SIZE) &&
                 (map[newX][newY] instanceof Pit ||
                 map[newX][newY] instanceof Wumpus)) {
                 neighbors.add(new Node(newX, newY));

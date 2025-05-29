@@ -53,12 +53,12 @@ public class GameController {
     }
 
     private void init(){
-        world = new World(GameConfig.WORLD_SIZE);
+        world = new World(GameConfig.MAP_SIZE);
         // create a new empty map
-        map = new AbstractWorldObject[GameConfig.WORLD_SIZE][GameConfig.WORLD_SIZE];
-        for (int i=0;i<GameConfig.WORLD_SIZE;i++){
-            for (int j=0;j<GameConfig.WORLD_SIZE;j++){
-                if (i==0 || i==GameConfig.WORLD_SIZE-1 || j==0 || j==GameConfig.WORLD_SIZE-1) map[i][j] = new Wall();
+        map = new AbstractWorldObject[GameConfig.MAP_SIZE][GameConfig.MAP_SIZE];
+        for (int i = 0; i<GameConfig.MAP_SIZE; i++){
+            for (int j = 0; j<GameConfig.MAP_SIZE; j++){
+                if (i==0 || i==GameConfig.MAP_SIZE -1 || j==0 || j==GameConfig.MAP_SIZE -1) map[i][j] = new Wall();
                 else map[i][j] = new Empty();
             }
         }
@@ -73,8 +73,8 @@ public class GameController {
         while (validMap) { // populate the map
             wumpus = new Wumpus(true);
             do {
-                int x = random.nextInt(GameConfig.WORLD_SIZE);
-                int y = random.nextInt(GameConfig.WORLD_SIZE);
+                int x = random.nextInt(GameConfig.MAP_SIZE);
+                int y = random.nextInt(GameConfig.MAP_SIZE);
                 if (map[x][y] instanceof Empty && (x != 1 && y != 1)) {
                     map[x][y] = wumpus;
                     wumpusX = x;
@@ -87,8 +87,8 @@ public class GameController {
             int numPits = 3;
             for (int i = 0; i < numPits; i++) {
                 do {
-                    int x = random.nextInt(GameConfig.WORLD_SIZE);
-                    int y = random.nextInt(GameConfig.WORLD_SIZE);
+                    int x = random.nextInt(GameConfig.MAP_SIZE);
+                    int y = random.nextInt(GameConfig.MAP_SIZE);
                     if (map[x][y] instanceof Empty && (x != 1 && y != 1)) {
                         map[x][y] = new Pit();
                         break;
@@ -98,8 +98,8 @@ public class GameController {
 
             // put the gold
             do {
-                int x = random.nextInt(GameConfig.WORLD_SIZE);
-                int y = random.nextInt(GameConfig.WORLD_SIZE);
+                int x = random.nextInt(GameConfig.MAP_SIZE);
+                int y = random.nextInt(GameConfig.MAP_SIZE);
                 if (map[x][y] instanceof Empty && (x != 1 && y != 1)) {
                     gold = new Gold(x, y, false);
                     break;
@@ -114,8 +114,8 @@ public class GameController {
     }
 
     public void display() {
-        for (int i=0;i<GameConfig.WORLD_SIZE;i++){
-            for (int j=0;j<GameConfig.WORLD_SIZE;j++){
+        for (int i = 0; i<GameConfig.MAP_SIZE; i++){
+            for (int j = 0; j<GameConfig.MAP_SIZE; j++){
                 if (i == gold.getX() && j == gold.getY() && !gold.isTaken()) {
                     System.out.print(" G ");
                 } else {
@@ -168,17 +168,21 @@ public class GameController {
                 action = GameConfig.MOVE_FORWARD;
                 validate();
             } else if (Gdx.input.isKeyJustPressed(Input.Keys.Z)) {
-                action = GameConfig.ACTION;
+                action = GameConfig.SPECIAL;
                 validate();
             } else if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
-                action = GameConfig.GRAB_GOLD;
+                action = GameConfig.SEARCH;
                 validate();
             }
         } else {
             if (Gdx.input.isKeyJustPressed(Input.Keys.R)){
-                init();
+                restart();
             }
         }
+    }
+
+    public void restart() {
+        init();
     }
 
     public void validate() {

@@ -152,7 +152,7 @@ public class Agent extends AbstractWorldObject {
             arrow.setDirection(getDirection());
             switch (arrow.getDirection()) {
                 case 0: // right
-                    for (int i=newY;i<=GameConfig.WORLD_SIZE;i++) {
+                    for (int i = newY; i<=GameConfig.MAP_SIZE; i++) {
                         System.out.println("x: " + newX + " y: " + i);
                         if (map[newX][i] instanceof Wumpus) {
                             System.out.println("You hear a [SCREAM]!");
@@ -174,7 +174,7 @@ public class Agent extends AbstractWorldObject {
                     }
                     break;
                 case 1: // down
-                    for (int i = newX; i<= GameConfig.WORLD_SIZE; i++) {
+                    for (int i = newX; i<= GameConfig.MAP_SIZE; i++) {
                         System.out.println("x: " + i + " y: " + newY);
                         if (map[i][newY] instanceof Wumpus) {
                             System.out.println("You hear a [SCREAM]!");

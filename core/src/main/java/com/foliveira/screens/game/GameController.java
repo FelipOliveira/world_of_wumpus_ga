@@ -41,6 +41,7 @@ public class GameController {
     AbstractWorldObject[][] map;
 
     String statusMessage = "";
+    String agentMessage;
     float timer = 0;
 
     private final Random random = new Random();
@@ -66,6 +67,8 @@ public class GameController {
         agent = new Agent(1,1,0);
         arrow = new Arrow(agent.getX(),agent.getY());
         map[agent.getX()][agent.getY()] = agent;
+
+        agentMessage = agent.actionSense;
 
         int wumpusX, wumpusY;
 
@@ -136,7 +139,6 @@ public class GameController {
         int percepts = agent.getPassivePercepts(map, gold);
         System.out.print("You feel...");
         statusMessage = "You feel...\n";
-        String senseMessage = "";
         if ((percepts & GameConfig.BREEZE) != 0) {
             System.out.print("[BREEZE] ");
             statusMessage = statusMessage.concat("[BREEZE] ");
@@ -186,24 +188,26 @@ public class GameController {
     }
 
     public void validate() {
-        switch (action) {
-            case 1:
-                agent.move(map);
-                break;
-            case 2:
-                agent.turnLeft();
-                break;
-            case 3:
-                agent.turnRight();
-                break;
-            case 4:
-                agent.grabGold(gold);
-                break;
-            case 5:
-                agent.shootArrow(arrow, wumpus, map);
-                break;
+        if (!isGameOver()) {
+            switch (action) {
+                case 1:
+                    agent.move(map);
+                    break;
+                case 2:
+                    agent.turnLeft();
+                    break;
+                case 3:
+                    agent.turnRight();
+                    break;
+                case 4:
+                    agent.grabGold(gold);
+                    break;
+                case 5:
+                    agent.shootArrow(arrow, wumpus, map);
+                    break;
+            }
+            tick();
         }
-        tick();
     }
 
     private void tick() {
@@ -230,7 +234,7 @@ public class GameController {
     }
 
     public void update(float delta) {
-        processAction();
+        //processAction();
     }
 
 }

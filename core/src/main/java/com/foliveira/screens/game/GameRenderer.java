@@ -1,20 +1,24 @@
 package com.foliveira.screens.game;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -46,7 +50,10 @@ public class GameRenderer {
 
     private Stage stage;
     private Skin skin;
-    private Label statusLabel;
+    private Label logLabel;
+    private ScrollPane logScrollPane;
+    private ScrollingLabel infoBarLabel;
+
     private Button restartButton;
 
     public GameRenderer(SpriteBatch batch, AssetManager assetManager, GameController gameController) {
@@ -59,7 +66,7 @@ public class GameRenderer {
     public void init() {
         camera = new OrthographicCamera();
         viewport = new FitViewport(GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT, camera);
-        renderer = new ShapeRenderer();
+        //renderer = new ShapeRenderer();
 
         viewport.apply();
 
@@ -100,6 +107,11 @@ public class GameRenderer {
         font.setColor(Color.WHITE);
 
         setupUI();
+
+        appendToLog("Welcome to the World of Wumpus.");
+        //updatePerceptions();
+        updateInfoBar("Use the movement and action buttons to play. Find the gold and return to entrance to win!");
+
     }
 
     public void render(float delta) {
@@ -112,7 +124,39 @@ public class GameRenderer {
         stage.draw();
 
         hudViewport.apply();
-        renderUI();
+        //renderUI();
+        processKeyboardInput();
+    }
+
+    private void processKeyboardInput() {
+        if (!gameController.isGameOver()) {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.LEFT)) {
+                gameController.action = GameConfig.ROTATE_LEFT;
+                gameController.validate();
+                //updateLabel();
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)) {
+                gameController.action = GameConfig.ROTATE_RIGHT;
+                gameController.validate();
+                //updateLabel();
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.UP)) {
+                gameController.action = GameConfig.MOVE_FORWARD;
+                gameController.validate();
+                //updateLabel();
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.Z)) {
+                gameController.action = GameConfig.SPECIAL;
+                gameController.validate();
+                //updateLabel();
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
+                gameController.action = GameConfig.SEARCH;
+                gameController.validate();
+                //updateLabel();
+            }
+        } else {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.R)){
+                gameController.restart();
+                //updateLabel();
+            }
+        }
     }
 
     public void resize(int width, int height) {
@@ -167,94 +211,155 @@ public class GameRenderer {
     }
 
     private void setupUI() {
-        Table uiTable = new Table();
-        uiTable.setFillParent(true);
-        uiTable.align(Align.bottomLeft);
+        Table rootTable = new Table();
+        rootTable.setFillParent(true);
+        rootTable.debug();
 
-        statusLabel = new Label("starting game", skin);
-        statusLabel.setFontScale(1.2f);
-        statusLabel.setColor(Color.YELLOW);
-        uiTable.add(statusLabel).pad(10).expandX().align(Align.left);
-        uiTable.row();
+        //==========LOG-WINDOW==========
+        Table logTable = new Table(skin);
+        //logTable.setBackground("default-rect");
+        logLabel = new Label("", skin);
+        logLabel.setWrap(true);
+        logScrollPane = new ScrollPane(logLabel, skin);
+        logScrollPane.setFadeScrollBars(true);
+        logScrollPane.setScrollingDisabled(true, false);
+        logTable.add(logScrollPane).expand().fill().pad(5);
+        rootTable.add(logTable).height(Gdx.graphics.getHeight() * 0.25f).expandX().fillX().row();
 
-        Table movementButtons = new Table(skin);
-        movementButtons.defaults().pad(5).width(80).height(60);
-        TextButton moveButton = new TextButton("move", skin);
+        //==========GAMEPLAY-AREA==========
+        Table centerTable = new Table(skin);
+        //centerTable.setBackground("default-rect");
+        rootTable.add(centerTable).expand().fill().row();
+
+        Table leftButtons = new Table(skin);
+        leftButtons.defaults().pad(5).width(120).height(80);
+        leftButtons.align(Align.center);
+        TextButton moveButton = new TextButton("MOVE", skin);
         moveButton.addListener(new ClickListener() {
-           @Override
-           public void clicked(InputEvent event, float x, float y) {
-               gameController.action = GameConfig.MOVE_FORWARD;
-               gameController.validate();
-           }
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                gameController.action = GameConfig.MOVE_FORWARD;
+                gameController.validate();
+                appendToLog("you move forward");
+            }
         });
-
-        TextButton turnLeftButton = new TextButton("turn left", skin);
+        TextButton turnLeftButton = new TextButton("TURN LEFT", skin);
         turnLeftButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 gameController.action = GameConfig.ROTATE_LEFT;
                 gameController.validate();
+                appendToLog("you turn left");
             }
         });
-
         TextButton turnRightButton = new TextButton("turn right", skin);
         turnRightButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 gameController.action = GameConfig.ROTATE_RIGHT;
-                gameController.validate();
+                appendToLog("you turn right");
             }
         });
+        leftButtons.add("").row();
+        leftButtons.add(moveButton).row();
+        leftButtons.add(turnLeftButton).padRight(10).row();
+        leftButtons.add(turnRightButton).padLeft(10).row();
+        leftButtons.add("").row();
 
-        movementButtons.add("").row();
-        movementButtons.add(moveButton).center().row();
-        movementButtons.add(turnLeftButton).left().row();
-        movementButtons.add(turnRightButton).right().row();
+        centerTable.add(leftButtons).width(Gdx.graphics.getWidth() * 0.2f).expandY().fillY();
+        centerTable.add().expand().fill();
 
-        uiTable.add(movementButtons).pad(10).align(Align.bottomLeft);
-
-        Table actionButtons = new Table(skin);
-        actionButtons.defaults().pad(5).width(80).height(60);
-
-        TextButton searchButton = new TextButton("search", skin);
+        Table rightButtons = new Table(skin);
+        rightButtons.defaults().pad(5).width(120).height(80);
+        rightButtons.align(Align.center);
+        TextButton searchButton = new TextButton("SEARCH", skin);
         searchButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 gameController.action = GameConfig.SEARCH;
                 gameController.validate();
+                appendToLog("you search the room");
             }
         });
-
-        TextButton specialButton = new TextButton("special", skin);
+        TextButton specialButton = new TextButton("SPECIAL", skin);
         specialButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 gameController.action = GameConfig.SPECIAL;
                 gameController.validate();
+                appendToLog("you shoot the arrow");
             }
         });
+        rightButtons.add("").row();
+        rightButtons.add(specialButton).row();
+        rightButtons.add(searchButton).row();
+        rightButtons.add("").row();
 
-        actionButtons.add("").row();
-        actionButtons.add(searchButton).left().row();
-        actionButtons.add(specialButton).right().row();
+        centerTable.add(rightButtons).width(Gdx.graphics.getWidth() * 0.2f).expandY().fillY();
 
-        uiTable.add(actionButtons).pad(10).align(Align.bottomRight);
+        //==========INFO-WINDOW==========
+        infoBarLabel = new ScrollingLabel("INFO", font, Color.WHITE, 50f);
+        rootTable.add(infoBarLabel).height(Gdx.graphics.getHeight() * 0.1f).expandX().fillX().pad(5).row();
 
-        restartButton = new TextButton("restart", skin);
-        restartButton.setVisible(false);
-        restartButton.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                gameController.restart();
-                restartButton.setVisible(false);
-                updateStatusLabel();
+        rootTable.add(restartButton).pad(10).align(Align.bottomRight);
+        stage.addActor(rootTable);
+    }
+
+    private  void appendToLog(String message) {
+        logLabel.setText(logLabel.getText().toString() + "\n- " + message);
+        logScrollPane.scrollTo(0,0,0,0);
+        //TODO: write the log to a text file
+    }
+
+    private void updateInfoBar(String message) {
+        infoBarLabel.setText("INFO: " + message);
+    }
+
+    private static class ScrollingLabel extends Actor {
+        private final BitmapFont font;
+        private final Color color;
+        private String text;
+        private float textWidth;
+        private final float scrollSpeed;
+        private float currentXOffset;
+        private final GlyphLayout layout;
+        private final float padding = 50;
+
+        public ScrollingLabel(String text, BitmapFont font, Color color, float scrollSpeed) {
+            this.font = font;
+            this.color = color;
+            this.text = text;
+            this.scrollSpeed = scrollSpeed;
+            this.layout = new GlyphLayout();
+            setText(text);
+        }
+
+        public void setText(String newText) {
+            this.text = newText;
+            layout.setText(font, text);
+            this.textWidth = layout.width;
+            this.currentXOffset = 0;
+        }
+
+        @Override
+        public void act(float delta) {
+            super.act(delta);
+            if (textWidth > getWidth()) {
+                currentXOffset -= scrollSpeed * delta;
+                if (currentXOffset <= -(textWidth + padding)) {
+                    currentXOffset = 0;
+                }
             }
-        });
-        uiTable.add(restartButton).pad(10).align(Align.bottomRight);
-        stage.addActor(uiTable);
+        }
+
+        @Override
+        public void draw(Batch batch, float parentAlpha) {
+            font.setColor(color);
+            font.draw(batch, text, getX() + currentXOffset, getY() + getHeight() / 2 + layout.height / 2);
+            if (textWidth > getWidth()) {
+                font.draw(batch, text, getX() + currentXOffset + textWidth + padding, getY() + getHeight() / 2 + layout.height / 2);
+            }
+        }
     }
 
-    private void updateStatusLabel() {
-
-    }
 }

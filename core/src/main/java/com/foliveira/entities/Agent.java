@@ -62,7 +62,7 @@ public class Agent extends AbstractWorldObject {
     }
 
     public void grabGold(Gold gold) {
-        if (x == gold.getX() && y == gold.getY()) {
+        if (x == gold.getX() && y == gold.getY() && !hasGold) {
             System.out.println("You found gold!");
             actionSense = "You found gold!" ;
             hasGold = true;

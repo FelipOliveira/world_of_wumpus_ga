@@ -1,14 +1,14 @@
 package com.foliveira.config;
 
 public class GameConfig {
-    public static final float WIDTH = 800f; //pixels
-    public static final float HEIGHT = 600f;//pixels
+    public static final float WIDTH = 640f; //pixels
+    public static final float HEIGHT = 480f;//pixels
 
-    public static final float HUD_WIDTH = 400f; //world units
-    public static final float HUD_HEIGHT = 400f; //world units
+    public static final float HUD_WIDTH = 640f; //world units
+    public static final float HUD_HEIGHT = 480f; //world units
 
-    public static final float WORLD_WIDTH = 320f; //world_units
-    public static final float WORLD_HEIGHT = 320f;//world_units
+    public static final float WORLD_WIDTH = 640f * 1.5f; //world_units
+    public static final float WORLD_HEIGHT = 480f * 1.5f;//world_units
     public static final float WORLD_CENTER_X = WORLD_WIDTH/2;
     public static final float WORLD_CENTER_Y = WORLD_HEIGHT/2;
 

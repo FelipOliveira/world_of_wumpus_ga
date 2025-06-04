@@ -1,7 +1,10 @@
 {
 com.badlogic.gdx.graphics.g2d.BitmapFont: {
   default: {
-    file: font.fnt
+    file: press_start_2.fnt
+  }
+  gameplay: {
+    file: press_start_2.fnt
   }
   font: {
     file: font.fnt
@@ -119,7 +122,7 @@ com.badlogic.gdx.scenes.scene2d.ui.ImageButton$ImageButtonStyle: {
 }
 com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton$ImageTextButtonStyle: {
   default: {
-    font: font
+    font: default
     up: button-normal
     down: button-normal-pressed
     over: button-normal-over
@@ -128,7 +131,7 @@ com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton$ImageTextButtonStyle: {
 }
 com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle: {
   default: {
-    font: font
+    font: default
   }
   window: {
     font: window

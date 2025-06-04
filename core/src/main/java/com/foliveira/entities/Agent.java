@@ -1,6 +1,7 @@
 package com.foliveira.entities;
 
 import com.foliveira.config.GameConfig;
+import com.foliveira.config.Messages;
 
 public class Agent extends AbstractWorldObject {
 
@@ -50,7 +51,7 @@ public class Agent extends AbstractWorldObject {
         direction = (direction + 3) % 4;
         score--;
         System.out.println("You turned to left");
-        actionSense = "You turned to left";
+        actionSense = Messages.TURN_LEFT_ACTION;
 
     }
 
@@ -58,19 +59,20 @@ public class Agent extends AbstractWorldObject {
         direction = (direction + 1) % 4;
         score--;
         System.out.println("You turned to right");
-        actionSense = "You turned to right";
+        actionSense = Messages.TURN_RIGHT_ACTION;
     }
 
     public void grabGold(Gold gold) {
+        actionSense = Messages.SEARCH_ACTION;
         if (x == gold.getX() && y == gold.getY() && !hasGold) {
             System.out.println("You found gold!");
-            actionSense = "You found gold!" ;
+            actionSense = actionSense.concat(Messages.FOUND_GOLD);
             hasGold = true;
             score += 500;
             gold.setTaken(true);
         } else {
             System.out.println("You found nothing...");
-            actionSense = "You found nothing...";
+            actionSense = actionSense.concat(Messages.FOUND_NOTHING);
             score -= 10;
         }
     }
@@ -124,18 +126,18 @@ public class Agent extends AbstractWorldObject {
         }else {
             if (map[newX][newY] instanceof Pit) {
                 System.out.println("You fell on a pit!");
-                actionSense = "You fell on a pit!";
+                actionSense = Messages.AGENT_FELL_PIT;
                 setAlive(false);
             } else if (map[newX][newY] instanceof Wumpus) {
                 System.out.println("You got caught by the Wumpus!");
-                actionSense = "You got caught by the Wumpus!";
+                actionSense = Messages.AGENT_CAUGHT_BY_WUMPUS;
                 setAlive(false);
             }
             map[getX()][getY()] = new Empty();
             setX(newX);
             setY(newY);
             map[getX()][getY()] = this;
-            if (isAlive())actionSense = "You moved forward";
+            if (isAlive())actionSense = Messages.MOVE_ACTION;
             score--;
         }
     }
@@ -145,7 +147,7 @@ public class Agent extends AbstractWorldObject {
             setHasArrow(false);
             setScore(getScore()-10);
             System.out.println("You shot the arrow!");
-            actionSense = "You shot the arrow!";
+            actionSense = Messages.SHOOT_ARROW_ACTION;
             int newX = getX();
             int newY = getY();
 
@@ -153,7 +155,6 @@ public class Agent extends AbstractWorldObject {
             switch (arrow.getDirection()) {
                 case 0: // right
                     for (int i = newY; i<=GameConfig.MAP_SIZE; i++) {
-                        System.out.println("x: " + newX + " y: " + i);
                         if (map[newX][i] instanceof Wumpus) {
                             System.out.println("You hear a [SCREAM]!");
                             getScream();
@@ -164,7 +165,7 @@ public class Agent extends AbstractWorldObject {
                         }
                         if (map[newX][i] instanceof Wall) {
                             System.out.println("Your arrow hit the wall!");
-                            actionSense = actionSense.concat("\nYour arrow hit the wall!");
+                            actionSense = actionSense.concat(Messages.ARROW_HIT_WALL);
                             if (map[newX][i-1] instanceof Empty){
                                 arrow.setX(newX);
                                 arrow.setY(i-1);
@@ -175,7 +176,7 @@ public class Agent extends AbstractWorldObject {
                     break;
                 case 1: // down
                     for (int i = newX; i<= GameConfig.MAP_SIZE; i++) {
-                        System.out.println("x: " + i + " y: " + newY);
+                        //System.out.println("x: " + i + " y: " + newY);
                         if (map[i][newY] instanceof Wumpus) {
                             System.out.println("You hear a [SCREAM]!");
                             getScream();
@@ -186,7 +187,7 @@ public class Agent extends AbstractWorldObject {
                         }
                         if (map[i][newY] instanceof Wall) {
                             System.out.println("Your arrow hit the wall!");
-                            actionSense = actionSense.concat("\nYour arrow hit the wall!");
+                            actionSense = actionSense.concat(Messages.ARROW_HIT_WALL);
                             if (map[i][newY] instanceof Empty){
                                 arrow.setX(i-1);
                                 arrow.setY(newY);
@@ -209,7 +210,7 @@ public class Agent extends AbstractWorldObject {
                         }
                         if (map[newX][i] instanceof Wall) {
                             System.out.println("Your arrow hit the wall!");
-                            actionSense = actionSense.concat("\nYour arrow hit the wall!");
+                            actionSense = actionSense.concat( Messages.ARROW_HIT_WALL);
                             if (map[newX][i+1] instanceof Empty){
                                 arrow.setX(newX);
                                 arrow.setY(i+1);
@@ -220,7 +221,7 @@ public class Agent extends AbstractWorldObject {
                     break;
                 case 3: // up
                     for (int i=newX;i>=0;i--) {
-                        System.out.println("x: " + i + " y: " + newY);
+                        //System.out.println("x: " + i + " y: " + newY);
                         if (map[i][newY] instanceof Wumpus) {
                             System.out.println("You hear a [SCREAM]!");
                             getScream();
@@ -231,7 +232,7 @@ public class Agent extends AbstractWorldObject {
                         }
                         if (map[i][newY] instanceof Wall) {
                             System.out.println("Your arrow hit the wall!");
-                            actionSense = actionSense.concat("\nYour arrow hit the wall!");
+                            actionSense = actionSense.concat( Messages.ARROW_HIT_WALL);
                             if (map[i+1][newY] instanceof Empty){
                                 arrow.setX(i+1);
                                 arrow.setY(newY);
@@ -243,19 +244,19 @@ public class Agent extends AbstractWorldObject {
             }
         } else {
             System.out.println("Your have no arrow left");
-            actionSense = "Your have no arrows left";
+            actionSense = Messages.NO_ARROW;
         }
     }
 
     public void getBump() {
         percepts |= GameConfig.BUMP;
         System.out.println("You hit a wall");
-        actionSense = "You hit a wall";
+        actionSense = Messages.AGENT_HIT_WALL;
     }
 
     public void getScream() {
         percepts |= GameConfig.SCREAM;
-        actionSense = actionSense.concat("\nYou hear a [SCREAM]!");
+        actionSense = actionSense.concat(Messages.ARROW_HIT_WUMPUS);
     }
 
     public int getDirection() {
@@ -290,10 +291,6 @@ public class Agent extends AbstractWorldObject {
         this.alive = alive;
     }
 
-    public void setHasGold(boolean hasGold) {
-        this.hasGold = hasGold;
-    }
-
     public int getX() {
         return x;
     }
@@ -314,15 +311,8 @@ public class Agent extends AbstractWorldObject {
         return percepts;
     }
 
-    public void setPercepts(int percepts) {
-        this.percepts = percepts;
-    }
-
     public String getActionSense() {
         return actionSense;
     }
 
-    public void setActionSense(String actionSense) {
-        actionSense = actionSense;
-    }
 }

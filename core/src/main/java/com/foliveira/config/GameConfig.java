@@ -7,7 +7,7 @@ public class GameConfig {
     public static final float HUD_WIDTH = 640f; //world units
     public static final float HUD_HEIGHT = 480f; //world units
 
-    public static final float WORLD_WIDTH = 640f * 1.5f; //world_units
+    public static final float WORLD_WIDTH = 640 * 1.5f; //world_units
     public static final float WORLD_HEIGHT = 480f * 1.5f;//world_units
     public static final float WORLD_CENTER_X = WORLD_WIDTH/2;
     public static final float WORLD_CENTER_Y = WORLD_HEIGHT/2;

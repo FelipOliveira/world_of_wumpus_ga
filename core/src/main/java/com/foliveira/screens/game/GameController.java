@@ -1,18 +1,18 @@
 package com.foliveira.screens.game;
 
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.utils.Logger;
 import com.foliveira.WumpusGame;
 import com.foliveira.commom.PathFinder;
 import com.foliveira.config.GameConfig;
+import com.foliveira.config.Messages;
 import com.foliveira.entities.AbstractWorldObject;
 import com.foliveira.entities.Agent;
 import com.foliveira.entities.Arrow;
 import com.foliveira.entities.Background;
 import com.foliveira.entities.Empty;
+import com.foliveira.entities.GameStatus;
 import com.foliveira.entities.Gold;
 import com.foliveira.entities.Pit;
 import com.foliveira.entities.Wall;
@@ -42,7 +42,9 @@ public class GameController {
 
     String statusMessage = "";
     String agentMessage;
-    float timer = 0;
+    String infoBarMessage = "";
+
+    GameStatus status;
 
     private final Random random = new Random();
 
@@ -112,6 +114,7 @@ public class GameController {
             validMap = PathFinder.hasValidPathToGold(agent.getX(), agent.getY(), gold.getX(), gold.getY(), map) &&
                 PathFinder.hasValidPathToWumpus(agent.getX(), agent.getY(), wumpusX, wumpusY, map);
         }
+        status = GameStatus.PLAYING;
         display();
         displayPercepts();
     }
@@ -138,57 +141,41 @@ public class GameController {
     public void displayPercepts() {
         int percepts = agent.getPassivePercepts(map, gold);
         System.out.print("You feel...");
-        statusMessage = "You feel...\n";
+        statusMessage = Messages.YOU_FEEL;
         if ((percepts & GameConfig.BREEZE) != 0) {
             System.out.print("[BREEZE] ");
-            statusMessage = statusMessage.concat("[BREEZE] ");
+            statusMessage = statusMessage.concat(Messages.BREEZE);
         }
         if ((percepts & GameConfig.STENCH) != 0) {
             System.out.print("[STENCH] ");
-            statusMessage = statusMessage.concat("[STENCH] ");
+            statusMessage = statusMessage.concat(Messages.STENCH);
+            infoBarMessage = Messages.WUMPUS_NEARBY_INFO;
         }
         if ((percepts & GameConfig.GLITTER) != 0) {
             System.out.print("[GLITTER] ");
-            statusMessage = statusMessage.concat("[GLITTER] ");
+            statusMessage = statusMessage.concat(Messages.GLITTER);
+            infoBarMessage = Messages.GLITTER_INFO;
         }
         if (percepts == 0) {
             System.out.print("[NOTHING]");
-            statusMessage = statusMessage.concat("[NOTHING] ");
+            statusMessage = statusMessage.concat(Messages.NOTHING);
+            infoBarMessage = agent.isHasGold() ? Messages.GOT_GOLD_INFO : Messages.INITIAL_MESSAGE_INFO;
         }
         System.out.println();
     }
 
-    public void processAction() {
-        if (!isGameOver()) {
-            if (Gdx.input.isKeyJustPressed(Input.Keys.LEFT)) {
-                action = GameConfig.ROTATE_LEFT;
-                validate();
-            } else if (Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)) {
-                action = GameConfig.ROTATE_RIGHT;
-                validate();
-            } else if (Gdx.input.isKeyJustPressed(Input.Keys.UP)) {
-                action = GameConfig.MOVE_FORWARD;
-                validate();
-            } else if (Gdx.input.isKeyJustPressed(Input.Keys.Z)) {
-                action = GameConfig.SPECIAL;
-                validate();
-            } else if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
-                action = GameConfig.SEARCH;
-                validate();
-            }
-        } else {
-            if (Gdx.input.isKeyJustPressed(Input.Keys.R)){
-                restart();
-            }
-        }
+    public void processAction(int actionCode) {
+        action = actionCode;
+        validate();
+
     }
 
     public void restart() {
         init();
     }
 
-    public void validate() {
-        if (!isGameOver()) {
+    private void validate() {
+
             switch (action) {
                 case 1:
                     agent.move(map);
@@ -206,31 +193,34 @@ public class GameController {
                     agent.shootArrow(arrow, wumpus, map);
                     break;
             }
-            tick();
-        }
+
+        tick();
     }
 
     private void tick() {
-        if (isAgentWon() || !agent.isAlive()) {
-            statusMessage = "Game Over.\nPress [R] to reset";
+        isAgentWon();
+        isGameOver();
+        if (status == GameStatus.WON || status == GameStatus.GAMEOVER) {
             gameOver();
         }
-        if (agent.isAlive()) {
+        if (status == GameStatus.PLAYING) {
             display();
             displayPercepts();
         }
     }
 
-    private boolean isAgentWon(){
-        return agent.getX() == 1 && agent.getY() == 1 && agent.isAlive() && agent.isHasGold();
+    private void isAgentWon(){
+        if (agent.getX() == 1 && agent.getY() == 1 && agent.isAlive() && agent.isHasGold())
+            status = GameStatus.WON;
     }
 
     private void gameOver() {
         System.out.println("Game Over. Your score is " + agent.getScore() + "\nPress [R] to reset");
+        statusMessage = Messages.GAME_OVER_MESSAGE + agent.getScore() + Messages.RESET_MESSAGE;
     }
 
-    public boolean isGameOver() {
-        return !agent.isAlive() || isAgentWon();
+    public void isGameOver() {
+        if(!agent.isAlive()) status = GameStatus.GAMEOVER;
     }
 
     public void update(float delta) {

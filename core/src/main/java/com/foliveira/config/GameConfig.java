@@ -4,11 +4,13 @@ public class GameConfig {
     public static final float WIDTH = 640f; //pixels
     public static final float HEIGHT = 480f;//pixels
 
-    public static final float HUD_WIDTH = 640f; //world units
-    public static final float HUD_HEIGHT = 480f; //world units
+    public static final float HUD_WIDTH = 320f; //world units
+    public static final float HUD_HEIGHT = 240f; //world units
+    public static final int VIRTUAL_WIDTH = 320;
+    public static final int VIRTUAL_HEIGHT = 240;
 
-    public static final float WORLD_WIDTH = 640 * 1.5f; //world_units
-    public static final float WORLD_HEIGHT = 480f * 1.5f;//world_units
+    public static final float WORLD_WIDTH = 320f; //world_units
+    public static final float WORLD_HEIGHT = 240f;//world_units
     public static final float WORLD_CENTER_X = WORLD_WIDTH/2;
     public static final float WORLD_CENTER_Y = WORLD_HEIGHT/2;
 

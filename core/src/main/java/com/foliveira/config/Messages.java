@@ -33,6 +33,11 @@ public class Messages {
     public static final String YOU_FEEL = "You feel ";
     public static final String GAME_OVER_MESSAGE = "Game over. Your score is ";
     public static final String RESET_MESSAGE = ". Press [R] to reset.";
+    public static final String YOU_ARE_FACING = "You're facing ";
+    public static final String NORTH = "[NORTH]";
+    public static final String EAST = "[EAST]";
+    public static final String SOUTH = "[SOUTH]";
+    public static final String WEST = "[WEST]";
 
     public static final String TURN_LEFT_ACTION = "You turned to left.";
     public static final String TURN_RIGHT_ACTION = "You turned to right.";

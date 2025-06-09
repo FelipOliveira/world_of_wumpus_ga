@@ -1,5 +1,6 @@
 package com.foliveira.screens.game;
 
+import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.assets.AssetManager;
@@ -22,6 +23,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -49,6 +51,7 @@ public class GameRenderer {
     private TextureRegion playerRegion;
     private TextureRegion obstacleRegion;
     private TextureRegion backgroundRegion;
+    private Texture texture;
 
     private Stage stage;
     private Skin skin;
@@ -66,8 +69,9 @@ public class GameRenderer {
     }
 
     public void init() {
+
         camera = new OrthographicCamera();
-        viewport = new FitViewport(GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT, camera);
+        viewport = new FitViewport(GameConfig.VIRTUAL_WIDTH, GameConfig.VIRTUAL_HEIGHT, camera);
         //renderer = new ShapeRenderer();
 
         viewport.apply();
@@ -76,13 +80,13 @@ public class GameRenderer {
         camera.update();
 
         hudCamera = new OrthographicCamera();
-        hudViewport = new FitViewport(GameConfig.HUD_WIDTH, GameConfig.HUD_HEIGHT, hudCamera);
+        hudViewport = new FitViewport(GameConfig.VIRTUAL_WIDTH, GameConfig.VIRTUAL_HEIGHT, hudCamera);
         //batch = new SpriteBatch();
         //font = assetManager.get(AssetDescriptors.FONT);
 
         // create debug camera controller
         debugCameraController = new DebugCameraController();
-        debugCameraController.setStartPosition(GameConfig.WORLD_CENTER_X, GameConfig.WORLD_CENTER_Y);
+        debugCameraController.setStartPosition((float) GameConfig.VIRTUAL_WIDTH /2, (float) GameConfig.VIRTUAL_HEIGHT /2);
 
         //TextureAtlas gameAtlas = assetManager.get(AssetDescriptors.GAME_ATLAS);
         // create player and obstacles textures
@@ -93,20 +97,22 @@ public class GameRenderer {
         //backgroundRegion = gameAtlas.findRegion(RegionNames.BACKGROUND);
 
         /*=======================SCENE2D MODE=======================*/
+
+        /*Texture texture = new Texture(Gdx.files.internal("texture/iso.jpg"));
+
+        Image background = new Image(texture);
+
+        background.setSize(GameConfig.VIRTUAL_WIDTH, GameConfig.VIRTUAL_HEIGHT);
+        stage.addActor(background);*/
+
+        font = new BitmapFont(Gdx.files.internal("ui/press_start_2.fnt"));
+        font.setColor(Color.WHITE);
+        font.getData().setScale(0.5f);
+
         skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
 
         stage = new Stage(viewport, batch);
         Gdx.input.setInputProcessor(stage);
-
-        Texture texture = new Texture(Gdx.files.internal("texture/iso.jpg"));
-
-        Image background = new Image(texture);
-
-        background.setSize(GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT);
-        stage.addActor(background);
-
-        font = new BitmapFont(Gdx.files.internal("ui/press_start_2.fnt"));
-        font.setColor(Color.WHITE);
 
         setupUI();
 
@@ -227,9 +233,9 @@ public class GameRenderer {
     }
 
     private void setupUI() {
-        Table rootTable = new Table();
+        Table rootTable = new Table(skin);
         rootTable.setFillParent(true);
-        rootTable.debug();
+        rootTable.setDebug(true, true);
 
         //==========LOG-WINDOW==========
         Table logTable = new Table(skin);
@@ -239,8 +245,8 @@ public class GameRenderer {
         logScrollPane = new ScrollPane(logLabel, skin);
         logScrollPane.setFadeScrollBars(true);
         logScrollPane.setScrollingDisabled(true, false);
-        logTable.add(logScrollPane).expand().fill().pad(5);
-        rootTable.add(logTable).height(Gdx.graphics.getHeight() * 0.25f).expandX().pad(20).fillX().row();
+        logTable.add(logScrollPane).expand().fill().pad(2);
+        rootTable.add(logTable).height(GameConfig.VIRTUAL_HEIGHT * 0.25f).expandX().fillX()/*.row()*/;
 
         //==========GAMEPLAY-AREA==========
         Table centerTable = new Table(skin);
@@ -248,12 +254,12 @@ public class GameRenderer {
         rootTable.add(centerTable).expand().fill().row();
 
         Table leftButtons = new Table(skin);
-        leftButtons.defaults().pad(5).width(120).height(80);
+        leftButtons.defaults().pad(2).width(60).height(40);
         leftButtons.align(Align.center);
         TextButton moveButton = new TextButton("MOVE", skin);
-        moveButton.addListener(new ClickListener() {
+        moveButton.addListener(new ChangeListener() {
             @Override
-            public void clicked(InputEvent event, float x, float y) {
+            public void changed(ChangeEvent event, Actor actor) {
                 if (gameController.status == GameStatus.PLAYING) {
                     gameController.processAction(GameConfig.MOVE_FORWARD);
                     appendToLog(gameController.agent.actionSense);
@@ -264,9 +270,9 @@ public class GameRenderer {
             }
         });
         TextButton turnLeftButton = new TextButton("TURN LEFT", skin);
-        turnLeftButton.addListener(new ClickListener() {
+        turnLeftButton.addListener(new ChangeListener() {
             @Override
-            public void clicked(InputEvent event, float x, float y) {
+            public void changed(ChangeEvent event, Actor actor) {
                 if (gameController.status == GameStatus.PLAYING) {
                     gameController.processAction(GameConfig.ROTATE_LEFT);
                     appendToLog(gameController.agent.actionSense);
@@ -276,9 +282,9 @@ public class GameRenderer {
             }
         });
         TextButton turnRightButton = new TextButton("TURN RIGHT", skin);
-        turnRightButton.addListener(new ClickListener() {
+        turnRightButton.addListener(new ChangeListener() {
             @Override
-            public void clicked(InputEvent event, float x, float y) {
+            public void changed(ChangeEvent event, Actor actor) {
                 if (gameController.status == GameStatus.PLAYING) {
                     gameController.processAction(GameConfig.ROTATE_RIGHT);
                     appendToLog(gameController.agent.actionSense);
@@ -289,20 +295,20 @@ public class GameRenderer {
         });
         leftButtons.add("").row();
         leftButtons.add(moveButton).row();
-        leftButtons.add(turnLeftButton).padRight(10).row();
-        leftButtons.add(turnRightButton).padRight(10).row();
+        leftButtons.add(turnLeftButton).padRight(5).row();
+        leftButtons.add(turnRightButton).padLeft(5).row();
         leftButtons.add("").row();
 
-        centerTable.add(leftButtons).width(Gdx.graphics.getWidth() * 0.2f).expandY().pad(10).fillY();
+        centerTable.add(leftButtons).width(GameConfig.VIRTUAL_WIDTH * 0.2f).expandY().fillY();
         centerTable.add().expand().fill();
 
         Table rightButtons = new Table(skin);
-        rightButtons.defaults().pad(5).width(120).height(80);
+        rightButtons.defaults().pad(2).width(60).height(40);
         rightButtons.align(Align.center);
         TextButton searchButton = new TextButton("SEARCH", skin);
-        searchButton.addListener(new ClickListener() {
+        searchButton.addListener(new ChangeListener() {
             @Override
-            public void clicked(InputEvent event, float x, float y) {
+            public void changed(ChangeEvent event, Actor actor) {
                 if (gameController.status == GameStatus.PLAYING) {
                     gameController.processAction(GameConfig.SEARCH);
 
@@ -315,9 +321,9 @@ public class GameRenderer {
             }
         });
         TextButton specialButton = new TextButton("SPECIAL", skin);
-        specialButton.addListener(new ClickListener() {
+        specialButton.addListener(new ChangeListener() {
             @Override
-            public void clicked(InputEvent event, float x, float y) {
+            public void changed(ChangeEvent event, Actor actor) {
                 if (gameController.status == GameStatus.PLAYING) {
                     gameController.processAction(GameConfig.SPECIAL);
 
@@ -331,11 +337,11 @@ public class GameRenderer {
         rightButtons.add(searchButton).row();
         rightButtons.add("").row();
 
-        centerTable.add(rightButtons).width(Gdx.graphics.getWidth() * 0.2f).expandY().pad(10).fillY();
+        centerTable.add(rightButtons).width(GameConfig.VIRTUAL_WIDTH * 0.2f).expandY().fillY();
 
         //==========INFO-WINDOW==========
-        infoBarLabel = new ScrollingLabel(Messages.INFO, font, Color.WHITE, 50f);
-        rootTable.add(infoBarLabel).height(Gdx.graphics.getHeight() * 0.1f).expandX().fillX().pad(1).row();
+        infoBarLabel = new ScrollingLabel(Messages.INFO, font, Color.WHITE, 20f);
+        rootTable.add(infoBarLabel).height(GameConfig.VIRTUAL_HEIGHT * 0.1f).expandX().fillX().pad(2).row();
 
         rootTable.add(restartButton).pad(10).align(Align.bottomRight);
         stage.addActor(rootTable);

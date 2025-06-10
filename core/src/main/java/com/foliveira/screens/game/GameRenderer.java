@@ -246,7 +246,7 @@ public class GameRenderer {
         logScrollPane.setFadeScrollBars(true);
         logScrollPane.setScrollingDisabled(true, false);
         logTable.add(logScrollPane).expand().fill().pad(2);
-        rootTable.add(logTable).height(GameConfig.VIRTUAL_HEIGHT * 0.25f).expandX().fillX()/*.row()*/;
+        rootTable.add(logTable).height(GameConfig.VIRTUAL_HEIGHT * 0.25f).expandX().fillX().row();
 
         //==========GAMEPLAY-AREA==========
         Table centerTable = new Table(skin);
@@ -295,7 +295,7 @@ public class GameRenderer {
         });
         leftButtons.add("").row();
         leftButtons.add(moveButton).row();
-        leftButtons.add(turnLeftButton).padRight(5).row();
+        leftButtons.add(turnLeftButton).padRight(5);
         leftButtons.add(turnRightButton).padLeft(5).row();
         leftButtons.add("").row();
 

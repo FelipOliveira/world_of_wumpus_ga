@@ -11,7 +11,8 @@ public class Messages {
     public static final String PIT = "[PIT]";
     public static final String WUMPUS = "[WUMPUS]";
 
-    public static final String WELCOME_LOG = "Welcome to the World of Wumpus. Find the gold and return to entrance to win! Use the movement buttons for turn left, right or move forward. Use the action buttons for search for gold or shoot your arrow.";
+    public static final String WELCOME_LOG = "Welcome to the World of Wumpus. Find the gold and return to entrance to win!";
+    public static final String TIPS = "Use the movement buttons for turn left, right or move forward. Use the action buttons for search for gold or shoot your arrow.";
     public static final String INFO = "INFO: ";
     public static final String INITIAL_MESSAGE_INFO = "Watch out for [BREEZE] or [STENCH], it indicates the [PITS] and the [WUMPUS] are nearby.";
     public static final String GLITTER_INFO = "the [GLITTER] indicates the gold is in this room. Try and search for it!";
@@ -32,7 +33,7 @@ public class Messages {
 
     public static final String YOU_FEEL = "You feel ";
     public static final String GAME_OVER_MESSAGE = "Game over. Your score is ";
-    public static final String RESET_MESSAGE = ". Press [R] to reset.";
+    public static final String RESET_MESSAGE = "Press [R] to reset.";
     public static final String YOU_ARE_FACING = "You're facing ";
     public static final String NORTH = "[NORTH]";
     public static final String EAST = "[EAST]";

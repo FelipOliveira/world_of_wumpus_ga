@@ -2,8 +2,8 @@ package com.foliveira;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
@@ -23,9 +23,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
-import com.foliveira.config.GameConfig;
 import com.foliveira.config.Messages;
-import com.foliveira.entities.GameStatus;
 import com.foliveira.utils.GdxUtils;
 import com.foliveira.utils.debug.DebugCameraController;
 
@@ -65,6 +63,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private Texture wallTexture;
     private Texture passageTexture;
     private SpriteBatch batch;
+    //private AssetManager manager;
     private OrthographicCamera camera;
     private DebugCameraController debugCameraController;
     private Viewport viewport;
@@ -119,7 +118,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         playerDirection = Direction.EAST;
         appendToLog(Messages.WELCOME_LOG);
         updatePerceptions();
-        updateInfoBar(Messages.INITIAL_MESSAGE_INFO);
+        //updateInfoBar(Messages.INITIAL_MESSAGE_INFO);
     }
 
     private void setupUI() {
@@ -131,12 +130,15 @@ public class WumpusGameScreen extends ApplicationAdapter {
         //logTable.setBackground("default-rect");
         logLabel = new Label("", skin);
         logLabel.setWrap(true);
+        BitmapFont logFont = skin.getFont("default");
+        float lineHeight = logFont.getLineHeight();
+        float logHeight = (lineHeight * 4) + 10;
         logScrollPane = new ScrollPane(logLabel, skin);
-        logScrollPane.setFadeScrollBars(false);
+        //logScrollPane.setFadeScrollBars(false);
         logScrollPane.setScrollingDisabled(true, false);
-        logTable.add(logScrollPane).expand().fill().pad(2);
+        logTable.add(logScrollPane).expand().fill().pad(5);
 
-        rootTable.add(logTable).height(VIRTUAL_HEIGHT * 0.25f).expandX().fillX().row();
+        rootTable.add(logTable).height(logHeight).expandX().fillX().row();
 
         Table centerTable = new Table(skin);
         //centerTable.setBackground("default-rect");
@@ -144,7 +146,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
         Table leftButtons = new Table(skin);
         leftButtons.defaults().pad(2).width(60).height(40);
-        leftButtons.align(Align.center);
+        leftButtons.align(Align.bottomLeft);
         TextButton moveButton = new TextButton("MOVE", skin);
         moveButton.addListener(new ChangeListener() {
             @Override
@@ -172,7 +174,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         leftButtons.add(turnRightButton).padLeft(5).row();
         leftButtons.add("").row();
 
-        centerTable.add(leftButtons).width(VIRTUAL_WIDTH * 0.2f).expandY().fillY();
+        centerTable.add(leftButtons).width(VIRTUAL_WIDTH * 0.25f).expandY().fillY();
 
         centerTable.add().expand().fill();
 
@@ -200,7 +202,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
         centerTable.add(rightButtons).width(VIRTUAL_WIDTH * 0.2f).expandY().fillY();
 
-        infoBarLabel = new ScrollingLabel(Messages.INFO, skin, "default", Color.WHITE, 20f);
+        infoBarLabel = new ScrollingLabel(Messages.TIPS, skin, "default", Color.WHITE, 20f);
 
         rootTable.add(infoBarLabel).height((VIRTUAL_HEIGHT) * 0.1f).expandX().fillX().pad(2).row();
 
@@ -233,7 +235,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
     private void appendToLog(String message) {
         logLabel.setText(logLabel.getText().toString() + "\n- " + message);
-        logScrollPane.scrollTo(0,0,0,0);
+        logScrollPane.layout();
+        logScrollPane.setScrollPercentY(1);
     }
 
     private void updateInfoBar(String message) {
@@ -667,8 +670,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private void shootArrow() {
         if (gameState != GameState.PLAYING) return;
         if (arrowsLeft > 0) {
+            String message = Messages.SHOOT_ARROW_ACTION;
             arrowsLeft--;
-            appendToLog(Messages.SHOOT_ARROW_ACTION);
 
             int currentX = playerX;
             int currentY = playerY;
@@ -694,6 +697,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
                 if (currentX == wumpusX && currentY == wumpusY && wumpusAlive) {
                     appendToLog(Messages.ARROW_HIT_WUMPUS);
+                    message = message.concat(Messages.ARROW_HIT_WUMPUS);
                     wumpusAlive = false;
                     world[wumpusX][wumpusY] = ' ';
                     if (hasGold && playerX == 0 && playerY == 0) {
@@ -706,7 +710,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
                     }
                 }
             }
-            appendToLog(Messages.ARROW_HIT_WALL);
+            message = message.concat(Messages.ARROW_HIT_WALL);
+            appendToLog(message);
         } else {
             appendToLog(Messages.NO_ARROW);
         }
@@ -766,7 +771,62 @@ public class WumpusGameScreen extends ApplicationAdapter {
         String perceptions = Messages.YOU_FEEL;
         boolean sensedSomething = false;
 
-        //if ()
+        if (isStench(playerX, playerY)) {
+            perceptions += Messages.STENCH;
+            sensedSomething = true;
+        }
+        if (isBreeze(playerX, playerY)) {
+            perceptions += Messages.BREEZE;
+            sensedSomething = true;
+        }
+        if (isGlitter(playerX, playerY)) {
+            perceptions += Messages.GLITTER;
+            sensedSomething = true;
+        }
+        if (!sensedSomething) {
+            perceptions += Messages.NOTHING;
+        }
+        appendToLog(perceptions);
+    }
+
+    private boolean isStench(int x, int y) {
+        if (!wumpusAlive) return false;
+        int [] dx = {0,0,1,-1};
+        int [] dy = {1,-1,0,0};
+
+        for (int i=0;i<4;i++){
+            int checkX = x + dx[i];
+            int checkY = y + dy[i];
+            if (isValidCell(checkX, checkY) && checkX == wumpusX && checkY == wumpusY) return true;
+        }
+        return false;
+    }
+
+    private boolean isBreeze(int x, int y) {
+        int [] dx = {0,0,1,-1};
+        int [] dy = {1,-1,0,0};
+
+        for (Vector2 pit : pitPositions) {
+            for (int i=0;i<4;i++){
+                int checkX = x + dx[i];
+                int checkY = y + dy[i];
+                if (isValidCell(checkX, checkY) && checkX == pit.x && checkY == pit.y) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isGlitter(int x, int y) {
+        if (hasGold) return false;
+        int [] dx = {0,0,1,-1};
+        int [] dy = {1,-1,0,0};
+
+        for (int i=0;i<4;i++){
+            int checkX = x + dx[i];
+            int checkY = y + dy[i];
+            if (isValidCell(checkX, checkY) && checkX == goldX && checkY == goldY) return true;
+        }
+        return false;
     }
 
     @Override
@@ -802,34 +862,41 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private static class ScrollingLabel extends Actor {
         private BitmapFont font;
         private Color color;
-        private String text;
-        private float textWidth;
+        private String scrollingText;
+        private final String fixedPrefix = Messages.INFO;
+        private float scrollingTextWidth;
+        private float fixedPrefixWidth;
         private float scrollSpeed;
         private float currentXOffset;
         private final GlyphLayout layout;
         private final float padding = 10;
-        public ScrollingLabel(String text, Skin skin, String fontStyleName, Color color, float scrollSpeed) {
+        public ScrollingLabel(String scrollingText, Skin skin, String fontStyleName, Color color, float scrollSpeed) {
             this.font = skin.getFont(fontStyleName);
             this.color = color;
-            this.text = text;
+            //this.text = scrollingText;
             this.scrollSpeed = scrollSpeed;
             this.layout = new GlyphLayout();
-            setText(text);
+
+            layout.setText(font, fixedPrefix);
+            this.fixedPrefixWidth = layout.width;
+
+            setText(scrollingText);
         }
 
         public void setText(String newText) {
-            this.text = newText;
-            layout.setText(font, text);
-            this.textWidth = layout.width;
+            this.scrollingText = newText;
+            layout.setText(font, scrollingText);
+            this.scrollingTextWidth = layout.width;
             this.currentXOffset = 0;
         }
 
         @Override
         public void act(float delta) {
-            if (textWidth > getWidth()) {
+            super.act(delta);
+            if (scrollingTextWidth > getWidth()) {
                 currentXOffset -= scrollSpeed * delta;
-                if (currentXOffset<= -(textWidth + padding)) {
-                    currentXOffset += (textWidth + padding);
+                if (currentXOffset <= -(scrollingTextWidth + padding)) {
+                    currentXOffset = 0;
                 }
             }
         }
@@ -837,19 +904,9 @@ public class WumpusGameScreen extends ApplicationAdapter {
         @Override
         public void draw(Batch batch, float parentAlpha) {
             font.setColor(color);
-            font.draw(
-              batch,
-              text,
-              getX() + currentXOffset,
-              getY() + getHeight() / 2 + layout.height / 2
-            );
-            if (textWidth > getWidth()) {
-                font.draw(
-                    batch,
-                    text,
-                    getX() + currentXOffset + textWidth + padding,
-                    getY() + getHeight() / 2 + layout.height / 2
-                );
+            font.draw(batch, scrollingText, getX() + currentXOffset, getY() + getHeight() / 2 + layout.height / 2);
+            if (scrollingTextWidth > getWidth()) {
+                font.draw(batch, scrollingText, getX() + currentXOffset + scrollingTextWidth + padding, getY() + getHeight() / 2 + layout.height / 2);
             }
         }
     }

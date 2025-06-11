@@ -2,7 +2,9 @@ package com.foliveira;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.ai.pfa.DefaultConnection;
 import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.graphics.Camera;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
@@ -10,6 +12,7 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -19,10 +22,12 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.ScissorStack;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+
 import com.foliveira.config.Messages;
 import com.foliveira.utils.GdxUtils;
 import com.foliveira.utils.debug.DebugCameraController;
@@ -35,12 +40,12 @@ import java.util.Random;
 import java.util.Set;
 
 public class WumpusGameScreen extends ApplicationAdapter {
-    private static final int WORLD_SIZE = 10;
-    private static final int NUM_PITS = 5;
+    private static final int WORLD_SIZE = 4;
+    private static final int NUM_PITS = 3;
     private static final int NUM_BATS = 2;
     private static final int NUM_WUMPUS = 1;
     private static final int NUM_ARROWS = 1;
-    private static final int VIRTUAL_WIDTH = 320;
+    private static final int VIRTUAL_WIDTH = 400;
     private static final int VIRTUAL_HEIGHT = 240;
 
     private enum Direction {
@@ -88,6 +93,11 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private int arrowsLeft = NUM_ARROWS;
     private final Random random = new Random();
     private boolean wumpusAlive = true;
+    private float logHeight;
+    private float infoBarHeight;
+    private float buttonsContainerHeight;
+    private float gameAreaY;
+    private float gameAreaHeight;
 
     @Override
     public void create() {
@@ -111,11 +121,20 @@ public class WumpusGameScreen extends ApplicationAdapter {
         stage = new Stage(viewport, batch);
         Gdx.input.setInputProcessor(stage);
 
+        BitmapFont logFont = skin.getFont("default");
+        float lineHeight = logFont.getLineHeight();
+        logHeight = (lineHeight * 4) + 10;
+
+        infoBarHeight = VIRTUAL_HEIGHT * 0.1f;
+        buttonsContainerHeight = VIRTUAL_HEIGHT * 0.25f;
+        gameAreaHeight = VIRTUAL_HEIGHT - (logHeight + infoBarHeight + buttonsContainerHeight);
+        gameAreaY = infoBarHeight + buttonsContainerHeight;
+
         setupUI();
 
         initializeWorld();
         gameState = GameState.PLAYING;
-        playerDirection = Direction.EAST;
+        playerDirection = Direction.NORTH;
         appendToLog(Messages.WELCOME_LOG);
         updatePerceptions();
         //updateInfoBar(Messages.INITIAL_MESSAGE_INFO);
@@ -130,23 +149,24 @@ public class WumpusGameScreen extends ApplicationAdapter {
         //logTable.setBackground("default-rect");
         logLabel = new Label("", skin);
         logLabel.setWrap(true);
-        BitmapFont logFont = skin.getFont("default");
-        float lineHeight = logFont.getLineHeight();
-        float logHeight = (lineHeight * 4) + 10;
         logScrollPane = new ScrollPane(logLabel, skin);
-        //logScrollPane.setFadeScrollBars(false);
+        logScrollPane.setFadeScrollBars(true);
         logScrollPane.setScrollingDisabled(true, false);
         logTable.add(logScrollPane).expand().fill().pad(5);
 
-        rootTable.add(logTable).height(logHeight).expandX().fillX().row();
+        rootTable.add(logTable).height(logHeight).expandX().fillX().padLeft(5).padRight(5).row();
 
-        Table centerTable = new Table(skin);
+        //Table centerTable = new Table(skin);
         //centerTable.setBackground("default-rect");
-        rootTable.add(centerTable).expand().fill().row();
+        rootTable.add().expand().fill().row();
+
+        Table buttonsContainerTable = new Table(skin);
+        //buttonsContainerTable.setBackground("default-rect");
+        buttonsContainerTable.defaults().pad(2);
 
         Table leftButtons = new Table(skin);
         leftButtons.defaults().pad(2).width(60).height(40);
-        leftButtons.align(Align.bottomLeft);
+        leftButtons.align(Align.left);
         TextButton moveButton = new TextButton("MOVE", skin);
         moveButton.addListener(new ChangeListener() {
             @Override
@@ -174,13 +194,13 @@ public class WumpusGameScreen extends ApplicationAdapter {
         leftButtons.add(turnRightButton).padLeft(5).row();
         leftButtons.add("").row();
 
-        centerTable.add(leftButtons).width(VIRTUAL_WIDTH * 0.25f).expandY().fillY();
+        /*centerTable.add(leftButtons).width(VIRTUAL_WIDTH * 0.25f).expandY().fillY();
 
-        centerTable.add().expand().fill();
+        centerTable.add().expand().fill();*/
 
         Table rightButtons = new Table(skin);
         rightButtons.defaults().pad(2).width(60).height(40);
-        rightButtons.align(Align.center);
+        rightButtons.align(Align.right);
         TextButton searchButton = new TextButton("SEARCH", skin);
         searchButton.addListener(new ChangeListener() {
             @Override
@@ -200,11 +220,17 @@ public class WumpusGameScreen extends ApplicationAdapter {
         rightButtons.add(searchButton).row();
         rightButtons.add("").row();
 
-        centerTable.add(rightButtons).width(VIRTUAL_WIDTH * 0.2f).expandY().fillY();
+        //centerTable.add(rightButtons).width(VIRTUAL_WIDTH * 0.2f).expandY().fillY();
 
-        infoBarLabel = new ScrollingLabel(Messages.TIPS, skin, "default", Color.WHITE, 20f);
+        buttonsContainerTable.add(leftButtons).width(VIRTUAL_WIDTH * 0.2f).expandY().fillY();
+        buttonsContainerTable.add().expandX().fillX();
+        buttonsContainerTable.add(rightButtons).width(VIRTUAL_WIDTH * 0.2f).expandY().fillY();
 
-        rootTable.add(infoBarLabel).height((VIRTUAL_HEIGHT) * 0.1f).expandX().fillX().pad(2).row();
+        rootTable.add(buttonsContainerTable).height(buttonsContainerHeight).expandX().fillX().padBottom(15).row();
+
+        infoBarLabel = new ScrollingLabel(Messages.TIPS, skin, "default", Color.WHITE, 20f, camera);
+
+        rootTable.add(infoBarLabel).height(infoBarHeight).expandX().fillX().row();
 
         restartButton = new TextButton("RESTART", skin);
         restartButton.setVisible(false);
@@ -240,7 +266,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     }
 
     private void updateInfoBar(String message) {
-        infoBarLabel.setText(Messages.INFO + message);
+        infoBarLabel.setText(message);
     }
 
     private void loadTextures(){
@@ -281,25 +307,33 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
         pitPositions = new Array<>();
         batPositions = new Array<>();
+
         boolean validLayout = false;
-        while (!validLayout) {
+        int attempts = 0;
+        while (!validLayout && attempts < 100) {
+            attempts++;
             for (int i=0;i<WORLD_SIZE;i++) {
                 for (int j=0;j<WORLD_SIZE;j++) {
                     world[i][j] = ' ';
                 }
             }
+
             world[playerX][playerY] = 'P';
+
             wumpusX = -1;
             wumpusY = -1;
             pitPositions.clear();
             batPositions.clear();
             goldX = -1;
             goldY = -1;
+
             do {
                 wumpusX = random.nextInt(WORLD_SIZE);
                 wumpusY = random.nextInt(WORLD_SIZE);
             } while (wumpusX == 0 && wumpusY == 0);
+
             world[wumpusX][wumpusY] = 'W';
+
             for (int i=0;i<NUM_PITS;i++) {
                 int x, y;
                 do {
@@ -309,6 +343,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 pitPositions.add(new Vector2(x, y));
                 world[x][y] = 'H';
             }
+
             for (int i=0;i<NUM_BATS;i++) {
                 int x, y;
                 do {
@@ -318,16 +353,24 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 batPositions.add(new Vector2(x, y));
                 world[x][y] = 'B';
             }
+
             do {
                 goldX = random.nextInt(WORLD_SIZE);
                 goldY = random.nextInt(WORLD_SIZE);
             } while ((goldX == 0 && goldY == 0)|| (goldX == wumpusX && goldY == wumpusY) || isPitAt(goldX,goldY) || isBatAt(goldX,goldY));
+
             world[goldX][goldY] = 'G';
+
             validLayout = hasValidPathToGold() && hasValidPathToWumpus();
+
             if (!validLayout) {
                 Gdx.app.log(WumpusGameScreen.class.getName(), "invalid layout, trying again...");
             }
-            Gdx.app.log(WumpusGameScreen.class.getName(), "valid layout generated.");
+        }
+        if (attempts >= 100 && !validLayout) {
+            Gdx.app.error(WumpusGameScreen.class.getName(), "no valid layout was possible.");
+        } else {
+            Gdx.app.log(WumpusGameScreen.class.getName(), "valid layout generated after " + attempts + " attempts");
         }
     }
 
@@ -382,7 +425,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
     }
 
     private  boolean hasValidPathToWumpus() {
-        if (wumpusAlive) return true;
+        if (!wumpusAlive) return true;
+
         return findPath(playerX, playerY, wumpusX, wumpusY);
     }
 
@@ -460,10 +504,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
     private void drawIsometricRoom() {
         float gameAreaWidth = VIRTUAL_WIDTH * 0.6f;
-        float gameAreaHeight = VIRTUAL_HEIGHT * 0.65f;
 
         float gameAreaX = VIRTUAL_WIDTH * 0.2f;
-        float gameAreaY = VIRTUAL_HEIGHT * 0.1f;
 
         // draw north wall
         batch.draw(roomFloorTexture, gameAreaX, gameAreaY,gameAreaWidth, gameAreaHeight);
@@ -736,9 +778,9 @@ public class WumpusGameScreen extends ApplicationAdapter {
             appendToLog(Messages.AGENT_FELL_PIT);
             appendToLog(Messages.GAME_OVER_MESSAGE);
             appendToLog(Messages.RESET_MESSAGE);
-        } else if (isBatAt(playerX,playerY)) {
-            teleportPlayer();
-            appendToLog("You got teleported by a bat");
+//        } else if (isBatAt(playerX,playerY)) {
+//            teleportPlayer();
+//            appendToLog("You got teleported by a bat");
         } else if (playerX == wumpusX && playerY == wumpusY && wumpusAlive) {
             gameState = GameState.GAME_OVER;
             appendToLog(Messages.AGENT_CAUGHT_BY_WUMPUS);
@@ -779,7 +821,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
             perceptions += Messages.BREEZE;
             sensedSomething = true;
         }
-        if (isGlitter(playerX, playerY)) {
+        if (isGlitter()) {
             perceptions += Messages.GLITTER;
             sensedSomething = true;
         }
@@ -816,17 +858,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
         return false;
     }
 
-    private boolean isGlitter(int x, int y) {
-        if (hasGold) return false;
-        int [] dx = {0,0,1,-1};
-        int [] dy = {1,-1,0,0};
-
-        for (int i=0;i<4;i++){
-            int checkX = x + dx[i];
-            int checkY = y + dy[i];
-            if (isValidCell(checkX, checkY) && checkX == goldX && checkY == goldY) return true;
-        }
-        return false;
+    private boolean isGlitter() {
+        return playerX == goldX && playerY == goldY && !hasGold;
     }
 
     @Override
@@ -860,17 +893,18 @@ public class WumpusGameScreen extends ApplicationAdapter {
     }
 
     private static class ScrollingLabel extends Actor {
-        private BitmapFont font;
-        private Color color;
-        private String scrollingText;
+        private final BitmapFont font;
+        private final Color color;
         private final String fixedPrefix = Messages.INFO;
+        private final float fixedPrefixWidth;
+        private String scrollingText;
         private float scrollingTextWidth;
-        private float fixedPrefixWidth;
-        private float scrollSpeed;
+        private final float scrollSpeed;
         private float currentXOffset;
         private final GlyphLayout layout;
         private final float padding = 10;
-        public ScrollingLabel(String scrollingText, Skin skin, String fontStyleName, Color color, float scrollSpeed) {
+        private final Camera camera;
+        public ScrollingLabel(String scrollingText, Skin skin, String fontStyleName, Color color, float scrollSpeed, Camera camera) {
             this.font = skin.getFont(fontStyleName);
             this.color = color;
             //this.text = scrollingText;
@@ -879,12 +913,13 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
             layout.setText(font, fixedPrefix);
             this.fixedPrefixWidth = layout.width;
+            this.camera = camera;
 
             setText(scrollingText);
         }
 
-        public void setText(String newText) {
-            this.scrollingText = newText;
+        public void setText(String newScrollingText) {
+            this.scrollingText = newScrollingText;
             layout.setText(font, scrollingText);
             this.scrollingTextWidth = layout.width;
             this.currentXOffset = 0;
@@ -893,20 +928,55 @@ public class WumpusGameScreen extends ApplicationAdapter {
         @Override
         public void act(float delta) {
             super.act(delta);
-            if (scrollingTextWidth > getWidth()) {
+            float availableScrollingAreaWidth = getWidth() - fixedPrefixWidth;
+            if (scrollingTextWidth > availableScrollingAreaWidth && availableScrollingAreaWidth > 0) {
                 currentXOffset -= scrollSpeed * delta;
                 if (currentXOffset <= -(scrollingTextWidth + padding)) {
-                    currentXOffset = 0;
+                    currentXOffset += (scrollingTextWidth + padding);
                 }
+            } else {
+                currentXOffset = 0;
             }
         }
 
         @Override
         public void draw(Batch batch, float parentAlpha) {
             font.setColor(color);
-            font.draw(batch, scrollingText, getX() + currentXOffset, getY() + getHeight() / 2 + layout.height / 2);
-            if (scrollingTextWidth > getWidth()) {
-                font.draw(batch, scrollingText, getX() + currentXOffset + scrollingTextWidth + padding, getY() + getHeight() / 2 + layout.height / 2);
+            font.draw(
+                batch,
+                Messages.INFO,
+                getX() + 5,
+                getY() + getHeight() / 2 + layout.height / 2
+            );
+
+            float scrollingDrawTextX = getX() + fixedPrefixWidth;
+            float clipX = scrollingDrawTextX;
+            float clipY = getY();
+            float clipWidth = getWidth() - fixedPrefixWidth;
+            float clipHeight = getHeight() + VIRTUAL_HEIGHT * 0.1f;
+
+            batch.flush();
+
+            Rectangle scissors = new Rectangle();
+            Rectangle clipBounds = new Rectangle(clipX,clipY,clipWidth,clipHeight);
+            ScissorStack.calculateScissors(camera, batch.getTransformMatrix(), clipBounds, scissors);
+            if (ScissorStack.pushScissors(scissors)) {
+                font.draw(
+                    batch,
+                    scrollingText,
+                    scrollingDrawTextX + currentXOffset,
+                    getY() + getHeight() / 2 + layout.height / 2
+                );
+                if (scrollingTextWidth > clipWidth) {
+                    font.draw(
+                        batch,
+                        scrollingText,
+                        scrollingDrawTextX + currentXOffset + scrollingTextWidth + padding,
+                        getY() + getHeight() / 2 + layout.height / 2
+                    );
+                    batch.flush();
+                }
+                ScissorStack.popScissors();
             }
         }
     }

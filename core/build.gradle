@@ -7,6 +7,7 @@ dependencies {
   api "com.badlogicgames.gdx:gdx:$gdxVersion"
   api "de.golfgl.gdxcontrollerutils:gdx-controllerutils-mapping:$controllerMappingVersion"
 
+
   if(enableGraalNative == 'true') {
     implementation "io.github.berstanio:gdx-svmhelper-annotations:$graalHelperVersion"
   }

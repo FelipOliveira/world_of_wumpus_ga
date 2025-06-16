@@ -192,67 +192,73 @@ public class WumpusGameScreen extends ApplicationAdapter {
         buttonsContainerTable.defaults().pad(2);
 
         Table leftButtons = new Table(skin);
-        leftButtons.defaults().pad(2).width(60).height(40);
+        leftButtons.defaults().pad(2).width(50).height(40);
         leftButtons.align(Align.left);
-        TextButton moveButton = new TextButton("MOVE", skin);
+        moveButton = new TextButton("MOVE", skin);
         moveButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                if (gameState == GameState.PLAYING) moveForward();
-               printWorld();
+               //printWorld();
             }
         });
-        TextButton turnLeftButton = new TextButton("TURN LEFT", skin);
+        turnLeftButton = new TextButton("TURN LEFT", skin);
         turnLeftButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (gameState == GameState.PLAYING) turnLeft();
-                printWorld();
+                //printWorld();
             }
         });
-        TextButton turnRightButton = new TextButton("TURN RIGHT", skin);
+        turnRightButton = new TextButton("TURN RIGHT", skin);
         turnRightButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (gameState == GameState.PLAYING) turnRight();
-                printWorld();
+                //printWorld();
             }
         });
         leftButtons.add("").row();
         leftButtons.add(moveButton).row();
-        leftButtons.add(turnLeftButton).padRight(5);
-        leftButtons.add(turnRightButton).padLeft(5).row();
+        leftButtons.add(turnLeftButton);
+        leftButtons.add(turnRightButton).row();
         leftButtons.add("").row();
 
-        /*centerTable.add(leftButtons).width(VIRTUAL_WIDTH * 0.25f).expandY().fillY();
-
-        centerTable.add().expand().fill();*/
-
         Table rightButtons = new Table(skin);
-        rightButtons.defaults().pad(2).width(60).height(40);
+        rightButtons.defaults().pad(2).width(50).height(40);
         rightButtons.align(Align.right);
-        TextButton searchButton = new TextButton("SEARCH", skin);
+        searchButton = new TextButton("SEARCH", skin);
         searchButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (gameState == GameState.PLAYING) searchForGold();
-                printWorld();
+                //printWorld();
             }
         });
-        TextButton specialButton = new TextButton("SPECIAL", skin);
+        specialButton = new TextButton("SPECIAL", skin);
         specialButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (gameState == GameState.PLAYING) shootArrow();
-                printWorld();
+                //printWorld();
+            }
+        });
+        mapButton = new TextButton("MAP", skin);
+        mapButton.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if (gameState == GameState.PLAYING) {
+                    boolean mapVisible = !mapScreen.isVisible();
+                    mapScreen.setVisible(mapVisible);
+                    setGameButtonsEnabled(!mapVisible);
+                }
             }
         });
         rightButtons.add("").row();
         rightButtons.add(specialButton).row();
-        rightButtons.add(searchButton).row();
+        rightButtons.add(searchButton);
+        rightButtons.add(mapButton).row();
         rightButtons.add("").row();
-
-        //centerTable.add(rightButtons).width(VIRTUAL_WIDTH * 0.2f).expandY().fillY();
 
         buttonsContainerTable.add(leftButtons).width(BASE_VIRTUAL_WIDTH * 0.2f).expandY().fillY();
         buttonsContainerTable.add().expandX().fillX();
@@ -260,24 +266,11 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
         hudRootTable.add(buttonsContainerTable).height(buttonsContainerHeight).expandX().fillX().padBottom(15).row();
 
-
-        Table bottomBarTable = new Table(skin);
         //bottomBarTable.setBackground("default-rect");
-        bottomBarTable.pad(2);
+        //bottomBarTable.pad(5);
 
-        infoBarLabel = new ScrollingLabel(Messages.TIPS, skin, "default", Color.WHITE, 20f, gameplayCamera);
-        bottomBarTable.add(infoBarLabel).expandX().fillX();
-        mapButton = new TextButton("MAP", skin);
-        mapButton.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                if (gameState == GameState.PLAYING) {
-                    mapScreen.setVisible(!mapScreen.isVisible()); // Toggles map screen visibility
-                }
-            }
-        });
-        bottomBarTable.add(mapButton).width(60).height(40).padLeft(5);
-        hudRootTable.add(bottomBarTable).height(infoBarHeight).expandX().fillX().row();
+        infoBarLabel = new ScrollingLabel(Messages.TIPS, skin, "default", Color.WHITE, 20f, hudCamera);
+        hudRootTable.add(infoBarLabel).height(infoBarHeight).expandX().fillX().row();
 
         hudStage.addActor(hudRootTable);
 
@@ -299,6 +292,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 appendToLog(Messages.WELCOME_LOG);
                 updatePerceptions();
                 updateInfoBar(Messages.INITIAL_MESSAGE_INFO);
+                setGameButtonsEnabled(true);
+                mapScreen.setVisible(false);
             }
         });
         hudStage.addActor(restartButton);
@@ -313,6 +308,15 @@ public class WumpusGameScreen extends ApplicationAdapter {
         mapScreen.setFillParent(true); // Makes the MapScreen fill the entire Stage
         mapScreen.setVisible(false);
         hudStage.addActor(mapScreen); // Adds to Stage so it's overlaid
+    }
+
+    private void setGameButtonsEnabled(boolean enabled) {
+        moveButton.setDisabled(!enabled);
+        turnLeftButton.setDisabled(!enabled);
+        turnRightButton.setDisabled(!enabled);
+        searchButton.setDisabled(!enabled);
+        specialButton.setDisabled(!enabled);
+        mapButton.setDisabled(!enabled);
     }
 
     private void appendToLog(String message) {
@@ -544,10 +548,10 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
     @Override
     public void render() {
+        GdxUtils.clearScreen();
+
         debugCameraController.inputDebugHandle(Gdx.graphics.getDeltaTime());
         debugCameraController.applyToCamera(gameplayCamera);
-
-        GdxUtils.clearScreen();
 
         gameplayCamera.update();
 
@@ -560,7 +564,13 @@ public class WumpusGameScreen extends ApplicationAdapter {
         hudStage.act(Gdx.graphics.getDeltaTime());
         hudStage.draw();
 
-        restartButton.setVisible(gameState == GameState.GAME_OVER || gameState == GameState.GAME_WON);
+        if (gameState == GameState.GAME_OVER || gameState == GameState.GAME_WON) {
+            restartButton.setVisible(true);
+            setGameButtonsEnabled(false);
+        } else {
+            restartButton.setVisible(false);
+            setGameButtonsEnabled(!mapScreen.isVisible());
+        }
     }
 
     private void drawIsometricRoom() {
@@ -816,7 +826,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
                 if (currentX == wumpusX && currentY == wumpusY && wumpusAlive) {
                     appendToLog(Messages.ARROW_HIT_WUMPUS);
-                    message = message.concat(Messages.ARROW_HIT_WUMPUS);
+                    //message = message.concat(Messages.ARROW_HIT_WUMPUS);
                     wumpusAlive = false;
                     score += 200;
                     world[wumpusX][wumpusY] = ' ';
@@ -828,9 +838,10 @@ public class WumpusGameScreen extends ApplicationAdapter {
                         updatePerceptions();
                         return;
                     }
+                } else {
+                    message = message.concat(Messages.ARROW_HIT_WALL);
                 }
             }
-            message = message.concat(Messages.ARROW_HIT_WALL);
             appendToLog(message);
         } else {
             appendToLog(Messages.NO_ARROW);
@@ -1060,7 +1071,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
             batch.flush();
 
             Rectangle scissors = new Rectangle();
-            Rectangle clipBounds = new Rectangle(clipX,clipY,clipWidth,clipHeight);
+            Rectangle clipBounds = new Rectangle(clipX, clipY, clipWidth, clipHeight);
             ScissorStack.calculateScissors(camera, batch.getTransformMatrix(), clipBounds, scissors);
             if (ScissorStack.pushScissors(scissors)) {
                 font.draw(
@@ -1177,7 +1188,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
                     setVisible(false); // Hides the map screen
                 }
             });
-            add(closeButton).colspan(2).width(100).height(35).pad(10).align(Align.center);
+            add(closeButton).colspan(2).width(100).height(35).pad(30).align(Align.center);
         }
 
         /**
@@ -1235,7 +1246,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
             float mapOffsetX = getX() + getCells().get(0).getPrefWidth() + (mapAreaWidth / 2f);
             float mapOffsetY = getY() + getPadBottom() + (mapAreaHeight / 2f);
 
-            float miniCellSize = 32;
+            float miniCellSize = 50;
 
             shapeRenderer.begin(ShapeType.Line);
             for (int y = 0; y < worldSize; y++) {

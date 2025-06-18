@@ -49,12 +49,16 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private static final int NUM_ARROWS = 1;
     private static final int BASE_VIRTUAL_WIDTH = 320;
     private static final int BASE_VIRTUAL_HEIGHT = 240;
+    private static final float LOG_BAR_VIRTUAL_HEIGHT = 50f;
+    private static final float INFO_BAR_VIRTUAL_HEIGHT = 25f;
+    private static final float BUTTONS_CONTAINER_VIRTUAL_HEIGHT = 80f;
+    private static final float EFFECTIVE_GAMEPLAY_VIRTUAL_WIDTH = BASE_VIRTUAL_WIDTH;
+    private static final float EFFECTIVE_GAMEPLAY_VIRTUAL_HEIGHT = BASE_VIRTUAL_HEIGHT - LOG_BAR_VIRTUAL_HEIGHT - INFO_BAR_VIRTUAL_HEIGHT;
 
     private enum Direction {
         NORTH, EAST, SOUTH, WEST
     }
     private Direction playerDirection;
-    private Texture grassTexture;
     private Texture playerTexture;
     private Texture wumpusTexture;
     private Texture pitTexture;
@@ -69,6 +73,15 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private Texture roomFloorTexture;
     private Texture wallTexture;
     private Texture passageTexture;
+    private Texture hexRoomBaseTexture;
+    private Texture hexPassageNorthTexture;
+    private Texture hexPassageEastTexture;
+    private Texture hexPassageSouthTexture;
+    private Texture hexPassageWestTexture;
+    private Texture eastArrowDirectionTexture;
+    private Texture northArrowDirectionTexture;
+    private Texture southArrowDirectionTexture;
+    private Texture westArrowDirectionTexture;
     private SpriteBatch batch;
     //private AssetManager manager;
     private OrthographicCamera gameplayCamera;
@@ -108,6 +121,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private boolean wumpusAlive = true;
     private float logHeight;
     private float infoBarHeight;
+    private float infoBarWidth;
     private float buttonsContainerHeight;
     private float gameAreaY;
     private float gameAreaHeight;
@@ -145,7 +159,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         font = new BitmapFont();
         font.setColor(Color.WHITE);
         font.getData().setScale(0.5f);
-        //loadTextures(); //comment for now(no textures yet...)
+        loadTextures(); //comment for now(no textures yet...)
 
         skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
 
@@ -156,8 +170,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
         infoBarHeight = BASE_VIRTUAL_HEIGHT * 0.1f;
         buttonsContainerHeight = BASE_VIRTUAL_HEIGHT * 0.25f;
-        gameAreaHeight = BASE_VIRTUAL_HEIGHT - (logHeight + infoBarHeight + buttonsContainerHeight);
-        gameAreaY = infoBarHeight + buttonsContainerHeight;
+        gameAreaHeight = BASE_VIRTUAL_HEIGHT - (logHeight + infoBarHeight);
+        gameAreaY = infoBarHeight;
 
         setupUI();
 
@@ -172,7 +186,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private void setupUI() {
         Table hudRootTable = new Table(skin);
         hudRootTable.setFillParent(true);
-        hudRootTable.debug();
+        //hudRootTable.debug();
 
         Table logTable = new Table(skin);
         //logTable.setBackground("default-rect");
@@ -189,58 +203,54 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
         Table buttonsContainerTable = new Table(skin);
         //buttonsContainerTable.setBackground("default-rect");
-        buttonsContainerTable.defaults().pad(2);
+        buttonsContainerTable.align(Align.bottom);
+        //buttonsContainerTable.defaults().pad(2);
 
         Table leftButtons = new Table(skin);
-        leftButtons.defaults().pad(2).width(50).height(40);
-        leftButtons.align(Align.left);
+        leftButtons.defaults().width(40).height(35);
+        leftButtons.align(Align.bottomLeft);
         moveButton = new TextButton("MOVE", skin);
         moveButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                if (gameState == GameState.PLAYING) moveForward();
-               //printWorld();
             }
         });
-        turnLeftButton = new TextButton("TURN LEFT", skin);
+        turnLeftButton = new TextButton("T_L", skin);
         turnLeftButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (gameState == GameState.PLAYING) turnLeft();
-                //printWorld();
             }
         });
-        turnRightButton = new TextButton("TURN RIGHT", skin);
+        turnRightButton = new TextButton("T_R", skin);
         turnRightButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (gameState == GameState.PLAYING) turnRight();
-                //printWorld();
             }
         });
-        leftButtons.add("").row();
-        leftButtons.add(moveButton).row();
+        //leftButtons.add("").row();
+        leftButtons.add(moveButton).colspan(2).row();
         leftButtons.add(turnLeftButton);
         leftButtons.add(turnRightButton).row();
-        leftButtons.add("").row();
+        //leftButtons.add("").row();
 
         Table rightButtons = new Table(skin);
-        rightButtons.defaults().pad(2).width(50).height(40);
-        rightButtons.align(Align.right);
-        searchButton = new TextButton("SEARCH", skin);
+        rightButtons.defaults().width(40).height(35);
+        rightButtons.align(Align.bottomRight);
+        searchButton = new TextButton("SGD", skin);
         searchButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (gameState == GameState.PLAYING) searchForGold();
-                //printWorld();
             }
         });
-        specialButton = new TextButton("SPECIAL", skin);
+        specialButton = new TextButton("SHT", skin);
         specialButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (gameState == GameState.PLAYING) shootArrow();
-                //printWorld();
             }
         });
         mapButton = new TextButton("MAP", skin);
@@ -254,27 +264,37 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 }
             }
         });
-        rightButtons.add("").row();
-        rightButtons.add(specialButton).row();
+        //rightButtons.add("").row();
+        rightButtons.add(specialButton).colspan(2).row();
         rightButtons.add(searchButton);
         rightButtons.add(mapButton).row();
-        rightButtons.add("").row();
+        //rightButtons.add("").row();
 
-        buttonsContainerTable.add(leftButtons).width(BASE_VIRTUAL_WIDTH * 0.2f).expandY().fillY();
+        buttonsContainerTable.add(leftButtons).expandX().align(Align.bottomLeft);
         buttonsContainerTable.add().expandX().fillX();
-        buttonsContainerTable.add(rightButtons).width(BASE_VIRTUAL_WIDTH * 0.2f).expandY().fillY();
+        buttonsContainerTable.add(rightButtons).expandX().align(Align.bottomRight).row();
+//        buttonsContainerTable.add(leftButtons).width(BASE_VIRTUAL_WIDTH * 0.2f).expandY().fillY();
+//        buttonsContainerTable.add().expandX().fillX();
+//        buttonsContainerTable.add(rightButtons).width(BASE_VIRTUAL_WIDTH * 0.2f).expandY().fillY();
 
-        hudRootTable.add(buttonsContainerTable).height(buttonsContainerHeight).expandX().fillX().padBottom(15).row();
+        hudRootTable.add(buttonsContainerTable).height(buttonsContainerHeight).expandX().fillX().row();
 
+        //Table bottomBarTable = new Table(skin);
         //bottomBarTable.setBackground("default-rect");
         //bottomBarTable.pad(5);
 
-        infoBarLabel = new ScrollingLabel(Messages.TIPS, skin, "default", Color.WHITE, 20f, hudCamera);
+        infoBarLabel = new ScrollingLabel(
+            Messages.TIPS,
+            skin,
+            "default",
+            Color.WHITE,
+            20f,
+            hudCamera
+        );
+        //bottomBarTable.add(infoBarLabel).expandX().fillX();
         hudRootTable.add(infoBarLabel).height(infoBarHeight).expandX().fillX().row();
 
         hudStage.addActor(hudRootTable);
-
-        //rootTable.add(infoBarLabel).height(infoBarHeight).expandX().fillX().row();
 
         restartButton = new TextButton("RESTART", skin);
         restartButton.setVisible(false);
@@ -286,13 +306,14 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 hasGold = false;
                 arrowsLeft = NUM_ARROWS;
                 wumpusAlive = true;
-                playerDirection = Direction.EAST;
+                playerDirection = Direction.NORTH;
                 restartButton.setVisible(false);
-                logLabel.setText("");
+                logLabel.setText("Game restarted.");
                 appendToLog(Messages.WELCOME_LOG);
                 updatePerceptions();
                 updateInfoBar(Messages.INITIAL_MESSAGE_INFO);
                 setGameButtonsEnabled(true);
+                mapButton.setDisabled(false);
                 mapScreen.setVisible(false);
             }
         });
@@ -316,7 +337,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
         turnRightButton.setDisabled(!enabled);
         searchButton.setDisabled(!enabled);
         specialButton.setDisabled(!enabled);
-        mapButton.setDisabled(!enabled);
+        // mapButton will be managed apart
+        //mapButton.setDisabled(!enabled);
     }
 
     private void appendToLog(String message) {
@@ -331,22 +353,32 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
     private void loadTextures(){
         try {
-            grassTexture = new Texture(Gdx.files.internal(""));
-            playerTexture = new Texture(Gdx.files.internal(""));
-            wumpusTexture = new Texture(Gdx.files.internal(""));
+            playerTexture = new Texture(Gdx.files.internal("texture/player.png"));
+            /*wumpusTexture = new Texture(Gdx.files.internal(""));
             pitTexture = new Texture(Gdx.files.internal(""));
             batTexture = new Texture(Gdx.files.internal(""));
-            goldTexture = new Texture(Gdx.files.internal(""));
-            stenchTexture = new Texture(Gdx.files.internal(""));
-            breezeTexture = new Texture(Gdx.files.internal(""));
-            glitterTexture = new Texture(Gdx.files.internal(""));
+
+
             arrowTexture = new Texture(Gdx.files.internal(""));
             gameOverTexture = new Texture(Gdx.files.internal(""));
-            gameWonTexture = new Texture(Gdx.files.internal(""));
+            gameWonTexture = new Texture(Gdx.files.internal(""));*/
 
-            roomFloorTexture = new Texture(Gdx.files.internal(""));
-            wallTexture = new Texture(Gdx.files.internal(""));
-            passageTexture = new Texture(Gdx.files.internal(""));
+            stenchTexture = new Texture(Gdx.files.internal("texture/stench.png"));
+            breezeTexture = new Texture(Gdx.files.internal("texture/breeze.png"));
+            glitterTexture = new Texture(Gdx.files.internal("texture/glitter.png"));
+
+            goldTexture = new Texture(Gdx.files.internal("texture/gold.png"));
+            hexRoomBaseTexture = new Texture(Gdx.files.internal("texture/hex_room_base.png"));
+            hexPassageNorthTexture = new Texture(Gdx.files.internal("texture/hex_passage_north.png"));
+            hexPassageEastTexture = new Texture(Gdx.files.internal("texture/hex_passage_east.png"));
+            hexPassageSouthTexture = new Texture(Gdx.files.internal("texture/hex_passage_south.png"));
+            hexPassageWestTexture = new Texture(Gdx.files.internal("texture/hex_passage_west.png"));
+
+            eastArrowDirectionTexture = new Texture(Gdx.files.internal("texture/east_arrow_direction.png"));
+            northArrowDirectionTexture = new Texture(Gdx.files.internal("texture/north_arrow_direction.png"));
+            southArrowDirectionTexture = new Texture(Gdx.files.internal("texture/south_arrow_direction.png"));
+            westArrowDirectionTexture = new Texture(Gdx.files.internal("texture/west_arrow_direction.png"));
+
         } catch (Exception e) {
             Gdx.app.error(WumpusGameScreen.class.getName(), "Error to load textures: " + e.getMessage());
             Gdx.app.exit();
@@ -554,11 +586,12 @@ public class WumpusGameScreen extends ApplicationAdapter {
         debugCameraController.applyToCamera(gameplayCamera);
 
         gameplayCamera.update();
+        gameplayViewport.apply();
 
         batch.setProjectionMatrix(gameplayCamera.combined);
 
         batch.begin();
-        //drawIsometricRoom();
+        drawHexagonalRoom();
         batch.end();
 
         hudStage.act(Gdx.graphics.getDeltaTime());
@@ -567,10 +600,137 @@ public class WumpusGameScreen extends ApplicationAdapter {
         if (gameState == GameState.GAME_OVER || gameState == GameState.GAME_WON) {
             restartButton.setVisible(true);
             setGameButtonsEnabled(false);
+            mapButton.setDisabled(true);
+            mapScreen.setVisible(false);
         } else {
             restartButton.setVisible(false);
-            setGameButtonsEnabled(!mapScreen.isVisible());
+            if (mapScreen.isVisible()) {
+                setGameButtonsEnabled(false);
+                mapButton.setDisabled(false);
+            } else {
+                setGameButtonsEnabled(true);
+                mapButton.setDisabled(false);
+            }
         }
+    }
+
+    private void drawHexagonalRoom() {
+        // Dimensões da viewport de gameplay (EFFECTIVE_GAMEPLAY_VIRTUAL_WIDTH/HEIGHT)
+        float viewWidth = gameplayViewport.getWorldWidth(); // 320
+        float viewHeight = gameplayViewport.getWorldHeight() - logHeight; // 165
+
+        // A hexRoomBaseTexture será desenhada para preencher a altura da viewport
+        // e terá uma largura igual à sua altura, já que a imagem fornecida é 1:1.
+        float hexRoomDrawWidth = hexRoomBaseTexture.getWidth(); // 165px
+        float hexRoomDrawHeight = hexRoomBaseTexture.getHeight(); // 165px
+
+        // Centraliza a textura da sala hexagonal dentro da viewport de gameplay
+        // A textura será desenhada a partir do canto inferior esquerdo.
+        float renderX = gameplayCamera.position.x - hexRoomDrawWidth / 2f;
+        float renderY = gameplayCamera.position.y - hexRoomDrawHeight / 2f;
+
+        // Desenha a textura base da sala hexagonal
+        batch.draw(hexRoomBaseTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+
+        switch (playerDirection) {
+            case NORTH:
+                batch.draw(northArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+                break;
+            case EAST:
+                batch.draw(eastArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+                break;
+            case SOUTH:
+                batch.draw(southArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+                break;
+            case WEST:
+                batch.draw(westArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+                break;
+        }
+
+        // --- Desenha Overlays de Passagem (se houver) ---
+        // As posições e tamanhos são baseados nas proporções da hexRoomBaseTexture (165x165)
+        // e nas suas especificações de posicionamento nos cantos da sala.
+        // Esses valores são estimativas e podem precisar de ajustes finos com sua arte final.
+
+        // Tamanhos de referência para as texturas de passagem
+        /*float passageWallWidth = hexRoomDrawWidth * 0.24f;  // ~40px
+        float passageWallHeight = hexRoomDrawHeight * 0.15f; // ~25px
+
+        float passageFloorWidth = hexRoomDrawWidth * 0.21f; // ~35px
+        float passageFloorHeight = hexRoomDrawHeight * 0.12f; // ~20px
+        */
+        // Passagem Norte (canto superior esquerdo, junto à parede esquerda)
+        if (isValidCell(playerX, playerY + 1)) {
+//            float northPassageX = renderX + hexRoomDrawWidth * 0.05f; // Mais à esquerda
+//            float northPassageY = renderY + hexRoomDrawHeight * 0.65f; // Mais para cima
+//            batch.draw(hexPassageNorthTexture, northPassageX, northPassageY, passageWallWidth, passageWallHeight);
+            batch.draw(hexPassageNorthTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+        }
+        // Passagem Leste (canto superior direito, junto à parede direita)
+        if (isValidCell(playerX + 1, playerY)) {
+//            float eastPassageX = renderX + hexRoomDrawWidth * 0.70f; // Mais à direita
+//            float eastPassageY = renderY + hexRoomDrawHeight * 0.65f; // Mais para cima
+//            batch.draw(hexPassageEastTexture, eastPassageX, eastPassageY, passageWallWidth, passageWallHeight);
+            batch.draw(hexPassageEastTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+        }
+        // Passagem Sul (canto inferior direito)
+        if (isValidCell(playerX, playerY - 1)) {
+//            float southPassageX = renderX + hexRoomDrawWidth * 0.60f; // Mais à direita
+//            float southPassageY = renderY + hexRoomDrawHeight * 0.05f; // Mais para baixo
+//            batch.draw(hexPassageSouthTexture, southPassageX, southPassageY, passageFloorWidth, passageFloorHeight);
+            batch.draw(hexPassageSouthTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+        }
+        // Passagem Oeste (canto inferior esquerdo)
+        if (isValidCell(playerX - 1, playerY)) {
+//            float westPassageX = renderX + hexRoomDrawWidth * 0.15f; // Mais à esquerda
+//            float westPassageY = renderY + hexRoomDrawHeight * 0.05f; // Mais para baixo
+//            batch.draw(hexPassageWestTexture, westPassageX, westPassageY, passageFloorWidth, passageFloorHeight);
+            batch.draw(hexPassageWestTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+        }
+        if (isStench(playerX, playerY)){
+            batch.draw(stenchTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+        }
+        if (isBreeze(playerX, playerY)){
+            batch.draw(breezeTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+        }
+        /*
+
+        // --- Desenha Jogador e Itens ---
+        // Tamanho do jogador e itens, proporcionais à nova dimensão da sala hexagonal
+        float playerDrawSize = hexRoomDrawWidth * 0.2f; // ~33 pixels (para 165x165px base)
+        float itemDrawSize = playerDrawSize * 0.75f;    // ~24 pixels
+
+        // Posição central do chão da sala na perspectiva isométrica.
+        // O jogador ficará centralizado no chão. O item ficará "logo abaixo" dele.
+        // Estes são offsets estimados da arte fornecida.
+        float roomFloorCenterX = renderX + hexRoomDrawWidth * 0.49f; // Ajustado para o centro visual do chão
+        float roomFloorCenterY = renderY + hexRoomDrawHeight * 0.28f; // Ajustado para o centro visual do chão
+
+        // Posição do jogador
+        float playerDrawX = roomFloorCenterX - playerDrawSize / 2f;
+        float playerDrawY = roomFloorCenterY - playerDrawSize / 2f;
+        */
+        batch.draw(playerTexture,renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+        /*
+        // Posição do item (abaixo do jogador)
+        float itemDrawX = roomFloorCenterX - itemDrawSize / 2f;
+        float itemDrawY = roomFloorCenterY - itemDrawSize / 2f - (playerDrawSize * 0.1f); // Ligeiramente abaixo do jogador
+
+        if (playerX == wumpusX && playerY == wumpusY && wumpusAlive) {
+            batch.draw(wumpusTexture, itemDrawX, itemDrawY, itemDrawSize, itemDrawSize);
+        }
+        */
+        if (playerX == goldX && playerY == goldY && !hasGold) {
+            //batch.draw(goldTexture, itemDrawX, itemDrawY, itemDrawSize, itemDrawSize);
+            batch.draw(glitterTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+        }
+        /*
+        if (isPitAt(playerX, playerY)) {
+            batch.draw(pitTexture, itemDrawX, itemDrawY, itemDrawSize, itemDrawSize);
+        }
+        if (isBatAt(playerX, playerY)) {
+            batch.draw(batTexture, itemDrawX, itemDrawY, itemDrawSize, itemDrawSize);
+        }*/
     }
 
     private void drawIsometricRoom() {
@@ -579,9 +739,6 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
         float renderX = gameplayCamera.position.x - gameAreaWidth / 2f;
         float renderY = gameplayCamera.position.y - gameAreaHeight / 2f;
-
-        float gameAreaX = BASE_VIRTUAL_WIDTH * 0.2f;
-
 
         batch.draw(roomFloorTexture, renderX, renderY, gameAreaWidth, gameAreaHeight);
         float wallWidth = gameAreaWidth * 0.3f;
@@ -593,7 +750,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         // draw north wall
         if (isValidCell(playerX, playerY + 1) && !isPitAt(playerX, playerY + 1) && !isBatAt(playerX, playerY + 1)) {
             batch.draw(
-                isValidCell(playerX, playerY + 1) ? passageTexture : wallTexture,
+                passageTexture,
                 renderX + gameAreaWidth * 0.35f,
                 renderY + gameAreaHeight * 0.8f,
                 wallWidth,
@@ -825,8 +982,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 currentY += dy;
 
                 if (currentX == wumpusX && currentY == wumpusY && wumpusAlive) {
-                    appendToLog(Messages.ARROW_HIT_WUMPUS);
-                    //message = message.concat(Messages.ARROW_HIT_WUMPUS);
+                    //appendToLog(Messages.ARROW_HIT_WUMPUS);
+                    message = message.concat(Messages.ARROW_HIT_WUMPUS);
                     wumpusAlive = false;
                     score += 200;
                     world[wumpusX][wumpusY] = ' ';
@@ -834,14 +991,13 @@ public class WumpusGameScreen extends ApplicationAdapter {
                         gameState = GameState.GAME_WON;
                         appendToLog(Messages.AGENT_WON_LOG);
                         appendToLog(Messages.GAME_OVER_MESSAGE);
-                        appendToLog(Messages.RESET_MESSAGE);
+                        //appendToLog(Messages.RESET_MESSAGE);
                         updatePerceptions();
                         return;
                     }
-                } else {
-                    message = message.concat(Messages.ARROW_HIT_WALL);
                 }
             }
+            //message = message.concat(Messages.ARROW_HIT_WALL);
             appendToLog(message);
         } else {
             appendToLog(Messages.NO_ARROW);
@@ -867,8 +1023,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
             gameState = GameState.GAME_OVER;
             appendToLog(Messages.AGENT_FELL_PIT);
             score -= 1000;
-            appendToLog(Messages.GAME_OVER_MESSAGE);
-            appendToLog(Messages.RESET_MESSAGE);
+            appendToLog(Messages.GAME_OVER_MESSAGE + score);
+            //appendToLog(Messages.RESET_MESSAGE);
 //        } else if (isBatAt(playerX,playerY)) {
 //            teleportPlayer();
 //            appendToLog("You got teleported by a bat");
@@ -876,13 +1032,13 @@ public class WumpusGameScreen extends ApplicationAdapter {
             gameState = GameState.GAME_OVER;
             appendToLog(Messages.AGENT_CAUGHT_BY_WUMPUS);
             score -= 1000;
-            appendToLog(Messages.GAME_OVER_MESSAGE);
-            appendToLog(Messages.RESET_MESSAGE);
+            appendToLog(Messages.GAME_OVER_MESSAGE + score);
+            //appendToLog(Messages.RESET_MESSAGE);
         } else if (hasGold && playerX == 0 && playerY == 0) {
             gameState = GameState.GAME_WON;
             appendToLog(Messages.AGENT_WON_LOG);
-            appendToLog(Messages.GAME_OVER_MESSAGE);
-            appendToLog(Messages.RESET_MESSAGE);
+            appendToLog(Messages.GAME_OVER_MESSAGE + score);
+            //appendToLog(Messages.RESET_MESSAGE);
         }
     }
 
@@ -902,26 +1058,28 @@ public class WumpusGameScreen extends ApplicationAdapter {
     }
 
     private void updatePerceptions() {
-        mapScreen.update(playerX, playerY, visitedRooms, wumpusAlive, hasGold, arrowsLeft, score);
-        String perceptions = Messages.YOU_FEEL;
-        boolean sensedSomething = false;
+        if (gameState == GameState.PLAYING) {
+            mapScreen.update(playerX, playerY, visitedRooms, wumpusAlive, hasGold, arrowsLeft, score);
+            String perceptions = Messages.YOU_FEEL;
+            boolean sensedSomething = false;
 
-        if (isStench(playerX, playerY)) {
-            perceptions += Messages.STENCH;
-            sensedSomething = true;
+            if (isStench(playerX, playerY)) {
+                perceptions += Messages.STENCH;
+                sensedSomething = true;
+            }
+            if (isBreeze(playerX, playerY)) {
+                perceptions += Messages.BREEZE;
+                sensedSomething = true;
+            }
+            if (isGlitter()) {
+                perceptions += Messages.GLITTER;
+                sensedSomething = true;
+            }
+            if (!sensedSomething) {
+                perceptions += Messages.NOTHING;
+            }
+            appendToLog(perceptions);
         }
-        if (isBreeze(playerX, playerY)) {
-            perceptions += Messages.BREEZE;
-            sensedSomething = true;
-        }
-        if (isGlitter()) {
-            perceptions += Messages.GLITTER;
-            sensedSomething = true;
-        }
-        if (!sensedSomething) {
-            perceptions += Messages.NOTHING;
-        }
-        appendToLog(perceptions);
     }
 
     private boolean isStench(int x, int y) {
@@ -957,24 +1115,18 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
     @Override
     public void resize(int width, int height) {
-        gameplayViewport.update(width, height);
-        gameplayCamera.position.set(
-            gameplayViewport.getWorldWidth()/2,
-            gameplayViewport.getWorldHeight()/2,
-            0
-        );
+        gameplayViewport.update(width, height, true);
+        gameplayCamera.position.set(gameplayViewport.getWorldWidth() / 2f, gameplayViewport.getWorldHeight() / 2f, 0);
         gameplayCamera.update();
 
-        float aspectRatio = (float)width/height;
+        float aspectRatio = (float)width / height;
         float hudVirtualWidth = BASE_VIRTUAL_HEIGHT * aspectRatio;
         hudViewport.setWorldSize(hudVirtualWidth, BASE_VIRTUAL_HEIGHT);
         hudViewport.update(width, height, true);
-        hudCamera.position.set(
-            hudViewport.getWorldWidth() / 2f,
-            hudViewport.getWorldHeight() / 2f,
-            0
-        );
+        hudCamera.position.set(hudViewport.getWorldWidth() / 2f, hudViewport.getWorldHeight() / 2f, 0);
+        infoBarLabel.refreshLayout();
         hudCamera.update();
+
 
         restartButton.setPosition(
             hudViewport.getWorldWidth() / 2f - restartButton.getWidth() / 2f,
@@ -997,12 +1149,19 @@ public class WumpusGameScreen extends ApplicationAdapter {
         gameOverTexture.dispose();
         gameWonTexture.dispose();
         roomFloorTexture.dispose();
-        passageTexture.dispose();*/
+        passageTexture.dispose();
+        hexRoomBaseTexture.dispose();
+        hexPassageNorthTexture.dispose();
+        hexPassageEastTexture.dispose();
+        hexPassageSouthTexture.dispose();
+        hexPassageWestTexture.dispose();
+*/
         mapScreen.dispose(); // Descarta os recursos da tela do mapa
         batch.dispose();
         gameplayStage.dispose();
         hudStage.dispose();
         skin.dispose();
+        font.dispose();
     }
 
     private static class ScrollingLabel extends Actor {
@@ -1017,7 +1176,15 @@ public class WumpusGameScreen extends ApplicationAdapter {
         private final GlyphLayout layout;
         private final float padding = 10;
         private final Camera camera;
-        public ScrollingLabel(String scrollingText, Skin skin, String fontStyleName, Color color, float scrollSpeed, Camera camera) {
+
+        public ScrollingLabel(
+            String scrollingText,
+            Skin skin,
+            String fontStyleName,
+            Color color,
+            float scrollSpeed,
+            Camera camera
+        ) {
             this.font = skin.getFont(fontStyleName);
             this.color = color;
             //this.text = scrollingText;
@@ -1041,6 +1208,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         @Override
         public void act(float delta) {
             super.act(delta);
+
             float availableScrollingAreaWidth = getWidth() - fixedPrefixWidth;
             if (scrollingTextWidth > availableScrollingAreaWidth && availableScrollingAreaWidth > 0) {
                 currentXOffset -= scrollSpeed * delta;
@@ -1091,6 +1259,10 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 }
                 ScissorStack.popScissors();
             }
+        }
+
+        public void refreshLayout() {
+            setText(this.scrollingText);
         }
     }
 
@@ -1158,6 +1330,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
             // Adds status labels
             Table statusTable = new Table(skin);
+            //statusTable.setDebug(true);
             statusTable.defaults().pad(5).align(Align.left);
 
             scoreLabel = new Label("SCORE: ", skin, "default", Color.WHITE);
@@ -1177,18 +1350,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
             statusTable.add(goldStatusLabel).row();
 
             // Map screen layout: status on left, map on right
-            add(statusTable).expandY().fillY().pad(10);
-            add().expand().fill(); // Empty cell for the map (drawn directly in draw)
-            row(); // Starts a new row for the close button
-
-            TextButton closeButton = new TextButton("BACK", skin);
-            closeButton.addListener(new ChangeListener() {
-                @Override
-                public void changed(ChangeEvent event, Actor actor) {
-                    setVisible(false); // Hides the map screen
-                }
-            });
-            add(closeButton).colspan(2).width(100).height(35).pad(30).align(Align.center);
+            add(statusTable).expandY().fillY().pad(10); // cell #0
+            add().expand().fill(); // Empty cell for the map (drawn directly in draw). cell #1
         }
 
         /**
@@ -1240,13 +1403,13 @@ public class WumpusGameScreen extends ApplicationAdapter {
             batch.end();
             shapeRenderer.setProjectionMatrix(getStage().getCamera().combined);
 
+            float miniCellSize = 48;
+
             float mapAreaWidth = getWidth() - getCells().get(0).getPrefWidth() - getPadLeft() - getPadRight();
-            float mapAreaHeight = getHeight() - getCells().get(2).getPrefHeight() - getPadTop() - getPadBottom();
+            float mapAreaHeight = getHeight() - getPadTop() - getPadBottom();
 
             float mapOffsetX = getX() + getCells().get(0).getPrefWidth() + (mapAreaWidth / 2f);
-            float mapOffsetY = getY() + getPadBottom() + (mapAreaHeight / 2f);
-
-            float miniCellSize = 50;
+            float mapOffsetY = getY() + getPadBottom() + (mapAreaHeight / worldSize);
 
             shapeRenderer.begin(ShapeType.Line);
             for (int y = 0; y < worldSize; y++) {
@@ -1263,8 +1426,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
                     };
                     shapeRenderer.polygon(vertices);
                     if (x == playerX && y == playerY) {
-                        shapeRenderer.setColor(1,1,1,flashingAlpha);
-                        shapeRenderer.polygon(vertices);
+                        shapeRenderer.setColor(1,1,1, flashingAlpha);
+                        shapeRenderer.circle(vertices[0], vertices[1] - miniCellSize/4f, miniCellSize/8f);
                     }
                 }
             }
@@ -1290,9 +1453,6 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 }
             }
             shapeRenderer.end();
-
-
-
             batch.begin(); // reset the SpriteBatch
         }
 

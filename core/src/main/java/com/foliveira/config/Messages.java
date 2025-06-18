@@ -23,6 +23,7 @@ public class Messages {
     public static final String MOVE_FORWARD_INFO = "Move forward.";
     public static final String SEARCH_INFO = "Search the current room.";
     public static final String SPECIAL_INFO = "Shot your arrow the direction you're facing.";
+    public static final String MAP_INFO = "Show the rooms you have visited.";
     public static final String AGENT_WON_LOG = "You did it!";
     public static final String ARROW_HIT_WALL = " but it hit the wall...";
     public static final String NO_ARROW = "Your have no arrows left";

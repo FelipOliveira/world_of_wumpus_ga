@@ -16,6 +16,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
@@ -23,6 +24,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ScissorStack;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
@@ -96,6 +98,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private Label logLabel;
     private ScrollPane logScrollPane;
     private ScrollingLabel infoBarLabel;
+    private String defaultInfoBarMessage;
 
     private TextButton restartButton;
     private TextButton mapButton;
@@ -178,9 +181,10 @@ public class WumpusGameScreen extends ApplicationAdapter {
         initializeWorld();
         gameState = GameState.PLAYING;
         playerDirection = Direction.NORTH;
+        defaultInfoBarMessage = Messages.INITIAL_MESSAGE_INFO;
         appendToLog(Messages.WELCOME_LOG);
         updatePerceptions();
-        //updateInfoBar(Messages.INITIAL_MESSAGE_INFO);
+        updateInfoBar(defaultInfoBarMessage);
     }
 
     private void setupUI() {
@@ -216,6 +220,16 @@ public class WumpusGameScreen extends ApplicationAdapter {
                if (gameState == GameState.PLAYING) moveForward();
             }
         });
+        moveButton.addListener(new ClickListener() {
+            @Override
+            public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
+                updateInfoBar(Messages.MOVE_FORWARD_INFO);
+            }
+            @Override
+            public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
+                updateInfoBar(defaultInfoBarMessage);
+            }
+        });
         turnLeftButton = new TextButton("T_L", skin);
         turnLeftButton.addListener(new ChangeListener() {
             @Override
@@ -223,11 +237,31 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 if (gameState == GameState.PLAYING) turnLeft();
             }
         });
+        turnLeftButton.addListener(new ClickListener() {
+            @Override
+            public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
+                updateInfoBar(Messages.TURN_LEFT_INFO);
+            }
+            @Override
+            public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
+                updateInfoBar(defaultInfoBarMessage);
+            }
+        });
         turnRightButton = new TextButton("T_R", skin);
         turnRightButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (gameState == GameState.PLAYING) turnRight();
+            }
+        });
+        turnRightButton.addListener(new ClickListener() {
+            @Override
+            public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
+                updateInfoBar(Messages.TURN_RIGHT_INFO);
+            }
+            @Override
+            public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
+                updateInfoBar(defaultInfoBarMessage);
             }
         });
         //leftButtons.add("").row();
@@ -246,11 +280,31 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 if (gameState == GameState.PLAYING) searchForGold();
             }
         });
+        searchButton.addListener(new ClickListener() {
+            @Override
+            public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
+                if (gameState == GameState.PLAYING) updateInfoBar(Messages.SEARCH_INFO);
+            }
+            @Override
+            public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
+                updateInfoBar(defaultInfoBarMessage);
+            }
+        });
         specialButton = new TextButton("SHT", skin);
         specialButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (gameState == GameState.PLAYING) shootArrow();
+            }
+        });
+        specialButton.addListener(new ClickListener() {
+            @Override
+            public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
+                updateInfoBar(Messages.SPECIAL_INFO);
+            }
+            @Override
+            public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
+                updateInfoBar(defaultInfoBarMessage);
             }
         });
         mapButton = new TextButton("MAP", skin);
@@ -262,6 +316,16 @@ public class WumpusGameScreen extends ApplicationAdapter {
                     mapScreen.setVisible(mapVisible);
                     setGameButtonsEnabled(!mapVisible);
                 }
+            }
+        });
+        mapButton.addListener(new ClickListener() {
+            @Override
+            public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
+                if (!mapScreen.isVisible()) updateInfoBar(Messages.MAP_INFO);
+            }
+            @Override
+            public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
+                updateInfoBar(defaultInfoBarMessage);
             }
         });
         //rightButtons.add("").row();
@@ -291,6 +355,16 @@ public class WumpusGameScreen extends ApplicationAdapter {
             20f,
             hudCamera
         );
+        infoBarLabel.addListener(new ClickListener() {
+            @Override
+            public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
+                infoBarLabel.scrollSpeed = 50f;
+            }
+            @Override
+            public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
+                infoBarLabel.scrollSpeed = 20f;
+            }
+        });
         //bottomBarTable.add(infoBarLabel).expandX().fillX();
         hudRootTable.add(infoBarLabel).height(infoBarHeight).expandX().fillX().row();
 
@@ -632,21 +706,6 @@ public class WumpusGameScreen extends ApplicationAdapter {
         // Desenha a textura base da sala hexagonal
         batch.draw(hexRoomBaseTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
 
-        switch (playerDirection) {
-            case NORTH:
-                batch.draw(northArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
-                break;
-            case EAST:
-                batch.draw(eastArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
-                break;
-            case SOUTH:
-                batch.draw(southArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
-                break;
-            case WEST:
-                batch.draw(westArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
-                break;
-        }
-
         // --- Desenha Overlays de Passagem (se houver) ---
         // As posições e tamanhos são baseados nas proporções da hexRoomBaseTexture (165x165)
         // e nas suas especificações de posicionamento nos cantos da sala.
@@ -710,6 +769,20 @@ public class WumpusGameScreen extends ApplicationAdapter {
         float playerDrawX = roomFloorCenterX - playerDrawSize / 2f;
         float playerDrawY = roomFloorCenterY - playerDrawSize / 2f;
         */
+        switch (playerDirection) {
+            case NORTH:
+                batch.draw(northArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+                break;
+            case EAST:
+                batch.draw(eastArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+                break;
+            case SOUTH:
+                batch.draw(southArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+                break;
+            case WEST:
+                batch.draw(westArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
+                break;
+        }
         batch.draw(playerTexture,renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
         /*
         // Posição do item (abaixo do jogador)
@@ -1011,7 +1084,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
             score += 500;
             world[goldX][goldY] = ' ';
             appendToLog(Messages.FOUND_GOLD);
-            updateInfoBar(Messages.GOT_GOLD_INFO);
+            defaultInfoBarMessage = Messages.GOT_GOLD_INFO;
+            updateInfoBar(defaultInfoBarMessage);
             updatePerceptions();
         } else {
             appendToLog(Messages.FOUND_NOTHING);
@@ -1136,26 +1210,27 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
     @Override
     public void dispose() {
-        /*grassTexture.dispose();
+
         playerTexture.dispose();
-        wumpusTexture.dispose();
+        /*wumpusTexture.dispose();
         pitTexture.dispose();
-        batTexture.dispose();
-        goldTexture.dispose();
-        stenchTexture.dispose();
-        breezeTexture.dispose();
-        glitterTexture.dispose();
         arrowTexture.dispose();
         gameOverTexture.dispose();
         gameWonTexture.dispose();
         roomFloorTexture.dispose();
         passageTexture.dispose();
+        batTexture.dispose();*/
+        goldTexture.dispose();
+        stenchTexture.dispose();
+        breezeTexture.dispose();
+        glitterTexture.dispose();
+
         hexRoomBaseTexture.dispose();
         hexPassageNorthTexture.dispose();
         hexPassageEastTexture.dispose();
         hexPassageSouthTexture.dispose();
         hexPassageWestTexture.dispose();
-*/
+
         mapScreen.dispose(); // Descarta os recursos da tela do mapa
         batch.dispose();
         gameplayStage.dispose();
@@ -1171,7 +1246,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         private final float fixedPrefixWidth;
         private String scrollingText;
         private float scrollingTextWidth;
-        private final float scrollSpeed;
+        private float scrollSpeed;
         private float currentXOffset;
         private final GlyphLayout layout;
         private final float padding = 10;

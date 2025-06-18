@@ -18,9 +18,9 @@ public class Messages {
     public static final String GLITTER_INFO = "the [GLITTER] indicates the gold is in this room. Try and search for it!";
     public static final String WUMPUS_NEARBY_INFO = "The " + WUMPUS + " is nearby. You can use your arrow to fight him or flee.";
     public static final String GOT_GOLD_INFO = "You got the [GOLD]. Head back to entrance to win!";
-    public static final String TURN_LEFT_INFO = "Turn to left.";
-    public static final String TURN_RIGHT_INFO = "Turn to right.";
-    public static final String MOVE_FORWARD_INFO = "Move forward.";
+    public static final String TURN_LEFT_INFO = "Turn the player to left.";
+    public static final String TURN_RIGHT_INFO = "Turn the player to right.";
+    public static final String MOVE_FORWARD_INFO = "Move the player in the current direction.";
     public static final String SEARCH_INFO = "Search the current room.";
     public static final String SPECIAL_INFO = "Shot your arrow the direction you're facing.";
     public static final String MAP_INFO = "Show the rooms you have visited.";

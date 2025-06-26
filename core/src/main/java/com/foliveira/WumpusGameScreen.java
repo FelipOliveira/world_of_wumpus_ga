@@ -42,6 +42,8 @@ import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.ArrayList;
+import java.util.List;
 
 public class WumpusGameScreen extends ApplicationAdapter {
     private static final int WORLD_SIZE = 4;
@@ -100,6 +102,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private ScrollingLabel infoBarLabel;
     private String defaultInfoBarMessage;
 
+    // buttons
     private TextButton restartButton;
     private TextButton mapButton;
     private TextButton moveButton;
@@ -107,6 +110,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private TextButton turnRightButton;
     private TextButton searchButton;
     private TextButton specialButton;
+    private TextButton toggleAgentButton;
 
     private char[][] world;
     private int playerX, playerY;
@@ -132,6 +136,12 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private MapScreen mapScreen;      // Nova tela de mapa
     private HashSet<Vector2> visitedRooms; // Para rastrear salas visitadas
     private int score; // Placar do jogo
+
+//    private ReactiveAgent agent;
+    private ReactiveAgentV2 agent;
+    private boolean isAgentPlaying = false;
+    private float agentActionTimer = 0f;
+    private static final float AGENT_ACTION_DELAY = 0.5f;
 
     @Override
     public void create() {
@@ -176,6 +186,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         gameAreaHeight = BASE_VIRTUAL_HEIGHT - (logHeight + infoBarHeight);
         gameAreaY = infoBarHeight;
 
+        agent = new ReactiveAgentV2();
         setupUI();
 
         initializeWorld();
@@ -192,16 +203,33 @@ public class WumpusGameScreen extends ApplicationAdapter {
         hudRootTable.setFillParent(true);
         //hudRootTable.debug();
 
-        Table logTable = new Table(skin);
+        Table topBarTable = new Table(skin);
         //logTable.setBackground("default-rect");
         logLabel = new Label("", skin);
         logLabel.setWrap(true);
         logScrollPane = new ScrollPane(logLabel, skin);
         logScrollPane.setFadeScrollBars(true);
         logScrollPane.setScrollingDisabled(true, false);
-        logTable.add(logScrollPane).expand().fill().pad(5);
+        topBarTable.add(logScrollPane).expand().fill().pad(5);
 
-        hudRootTable.add(logTable).height(logHeight).expandX().fillX().padLeft(5).padRight(5).row();
+        toggleAgentButton = new TextButton("IA ON/OFF", skin);
+        toggleAgentButton.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                isAgentPlaying = !isAgentPlaying;
+                appendToLog("Intelligent Agent: " + (isAgentPlaying ? "[ACTIVATED]" : "[DEACTIVATED]"));
+                agentActionTimer = 0f;
+                setGameButtonsEnabled(!isAgentPlaying);
+                mapButton.setDisabled(isAgentPlaying);
+            }
+        });
+        toggleAgentButton.addListener(new ClickListener() {
+            @Override public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) { updateInfoBar("Toggle between player and Intelligent Agent."); }
+            @Override public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) { updateInfoBar(defaultInfoBarMessage); }
+        });
+        topBarTable.add(toggleAgentButton).width(40).height(35).pad(2).align(Align.right);
+
+        hudRootTable.add(topBarTable).height(logHeight).expandX().fillX().padLeft(5).padRight(5).row();
 
         hudRootTable.add().expand().fill().row();
 
@@ -543,6 +571,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         } else {
             Gdx.app.log(WumpusGameScreen.class.getName(), "valid layout generated after " + attempts + " attempts");
         }
+        agent.initializeKnowledgeBase();
     }
 
     private boolean isPitAt(int x, int y) {
@@ -654,6 +683,13 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
     @Override
     public void render() {
+        if (gameState == GameState.PLAYING && isAgentPlaying) {
+            agentActionTimer -= Gdx.graphics.getDeltaTime();
+            if (agentActionTimer <= 0) {
+                agent.decideAndPerformAction();
+                agentActionTimer = AGENT_ACTION_DELAY;
+            }
+        }
         GdxUtils.clearScreen();
 
         debugCameraController.inputDebugHandle(Gdx.graphics.getDeltaTime());
@@ -671,7 +707,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         hudStage.act(Gdx.graphics.getDeltaTime());
         hudStage.draw();
 
-        if (gameState == GameState.GAME_OVER || gameState == GameState.GAME_WON) {
+        /*if (gameState == GameState.GAME_OVER || gameState == GameState.GAME_WON) {
             restartButton.setVisible(true);
             setGameButtonsEnabled(false);
             mapButton.setDisabled(true);
@@ -685,6 +721,26 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 setGameButtonsEnabled(true);
                 mapButton.setDisabled(false);
             }
+        }*/
+        if (gameState == GameState.GAME_OVER || gameState == GameState.GAME_WON) {
+            restartButton.setVisible(true);
+            setGameButtonsEnabled(false);
+            mapButton.setDisabled(true);
+            mapScreen.setVisible(false);
+            toggleAgentButton.setDisabled(true);
+        } else {
+            restartButton.setVisible(false);
+            if (isAgentPlaying) {
+                setGameButtonsEnabled(false);
+                mapButton.setDisabled(true);
+            } else {
+                setGameButtonsEnabled(true);
+                mapButton.setDisabled(false);
+                if (mapScreen.isVisible()){
+                    setGameButtonsEnabled(false);
+                }
+            }
+            toggleAgentButton.setDisabled(false);
         }
     }
 
@@ -1087,6 +1143,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
             defaultInfoBarMessage = Messages.GOT_GOLD_INFO;
             updateInfoBar(defaultInfoBarMessage);
             updatePerceptions();
+        } else if (hasGold) {
+            appendToLog("You already got the gold");
         } else {
             appendToLog(Messages.FOUND_NOTHING);
         }
@@ -1534,5 +1592,405 @@ public class WumpusGameScreen extends ApplicationAdapter {
         public void dispose() {
             shapeRenderer.dispose();
         }
+    }
+
+    public class ReactiveAgent {
+        public enum Action {
+            MOVE_FORWARD,
+            TURN_LEFT,
+            TURN_RIGHT,
+            SHOOT_ARROW,
+            GRAB_GOLD,
+            NO_ACTION
+        }
+
+        public ReactiveAgent() { }
+
+        /**
+         * O método principal onde o agente decide e executa uma ação.
+         * A decisão é baseada em um conjunto de regras priorizadas.
+         */
+        public void decideAndPerformAction() {
+            // Sentir o ambiente (percepções diretas do jogo, acessadas diretamente)
+            boolean hasStench = isStench(playerX, playerY);
+            boolean hasBreeze = isBreeze(playerX, playerY);
+            boolean hasGlitter = isGlitter();
+            boolean wumpusAlive = WumpusGameScreen.this.wumpusAlive;
+            int arrowsLeft = WumpusGameScreen.this.arrowsLeft;
+            boolean hasGold = WumpusGameScreen.this.hasGold;
+            int playerX = WumpusGameScreen.this.playerX;
+            int playerY = WumpusGameScreen.this.playerY;
+            Direction playerDirection = WumpusGameScreen.this.playerDirection;
+
+            // Adicionar a localização atual às salas visitadas (memória mínima)
+            visitedRooms.add(new Vector2(playerX, playerY));
+
+            // Decidir a ação com base nas percepções (regras priorizadas)
+
+            // Regra 1: Se há brilho, pegar o ouro.
+            if (hasGlitter) {
+                searchForGold();
+                //appendToLog("Agente: Peguei o ouro!");
+                return;
+            }
+
+            // Regra 2: Se o agente tem ouro e está na sala de entrada (0,0), o objetivo foi alcançado.
+            if (hasGold && playerX == 0 && playerY == 0) {
+                //appendToLog("Agente: Voltei para a entrada com o ouro. Missão cumprida!");
+                return;
+            }
+
+            // Regra 3: Se há fedor, o Wumpus está vivo e o agente tem flechas, atirar.
+            if (hasStench) {
+                if (arrowsLeft > 0) {
+                    shootArrow();
+                }
+                else {
+                    goBack();
+                    moveForward();
+                }
+                //appendToLog("Agente: Senti fedor, atirei uma flecha!");
+                return;
+            }
+
+            // Regra 4: Se há brisa (poço próximo), virar para evitar o perigo.
+            if (hasBreeze) {
+                turnInto();
+                moveForward();
+                //appendToLog("Agente: Senti brisa, virei para a esquerda.");
+                return;
+            }
+
+            // Regra 5: Nenhuma percepção imediata de perigo/ouro. Tentar explorar.
+            int nextX = playerX;
+            int nextY = playerY;
+            switch (playerDirection) {
+                case NORTH: nextY = playerY + 1; break;
+                case EAST: nextX = playerX + 1; break;
+                case SOUTH: nextY = playerY - 1; break;
+                case WEST: nextX = playerX - 1; break;
+            }
+
+            // Verifica se a próxima célula é válida e ainda não foi visitada
+            if (isValidCell(nextX, nextY)) {
+                moveForward();
+                //appendToLog("Agente: Movi para frente em (" + nextX + "," + nextY + ").");
+            } else {
+                // Se não puder mover para frente (parede ou célula já visitada), virar para tentar outra direção.
+                turnInto();
+                //appendToLog("Agente: Não pude mover para frente, virei para a esquerda.");
+            }
+        }
+
+        private void turnInto() {
+            // 0: left, 1: right
+            if (random.nextBoolean()) turnLeft();
+            else turnRight();
+        }
+        private void goBack() {
+            turnLeft();
+            turnLeft();
+            moveForward();
+        }
+    }
+
+    public class ReactiveAgentV2 {
+        public enum Action {
+            MOVE_FORWARD,
+            TURN_LEFT,
+            TURN_RIGHT,
+            SHOOT_ARROW,
+            GRAB_GOLD,
+            NO_ACTION
+        }
+
+        // Classe interna para representar o conhecimento do agente sobre cada célula do mundo
+        private class AgentWorldCell {
+            boolean visited;
+            boolean hasBreezePercept; // Agente percebeu brisa nesta célula
+            boolean hasStenchPercept; // Agente percebeu fedor nesta célula
+            boolean hasGlitterPercept; // Agente percebeu brilho nesta célula
+            boolean isSafeFromPit;    // Crença do agente: é seguro de poço
+            boolean isSafeFromWumpus; // Crença do agente: é seguro de Wumpus
+            boolean isKnownPit;       // Se o agente inferiu com certeza a presença de um poço
+            boolean isKnownWumpus;    // Se o agente inferiu com certeza a presença de um Wumpus
+
+            public AgentWorldCell() {
+                visited = false;
+                hasBreezePercept = false;
+                hasStenchPercept = false;
+                hasGlitterPercept = false;
+                isSafeFromPit = false; // Inicialmente desconhecido, marcado true se percebido seguro
+                isSafeFromWumpus = false; // Inicialmente desconhecido, marcado true se percebido seguro
+                isKnownPit = false;
+                isKnownWumpus = false;
+            }
+        }
+
+        private AgentWorldCell[][] knowledgeBase; // Mapa interno do agente
+
+        public ReactiveAgentV2() {
+            initializeKnowledgeBase();
+        }
+
+        public void initializeKnowledgeBase() {
+            knowledgeBase = new AgentWorldCell[WORLD_SIZE][WORLD_SIZE];
+            for (int x = 0; x < WORLD_SIZE; x++) {
+                for (int y = 0; y < WORLD_SIZE; y++) {
+                    knowledgeBase[x][y] = new AgentWorldCell();
+                }
+            }
+            // A sala de entrada (0,0) é sempre segura e visitada.
+            if (isValidCell(0,0)) {
+                knowledgeBase[0][0].visited = true;
+                knowledgeBase[0][0].isSafeFromPit = true;
+                knowledgeBase[0][0].isSafeFromWumpus = true;
+            }
+        }
+
+        /**
+         * O método principal onde o agente decide e executa uma ação.
+         * A decisão é baseada em um conjunto de regras priorizadas,
+         * utilizando as percepções atuais e o conhecimento registrado.
+         *
+         * @return A ação decidida pelo agente para este turno.
+         */
+        public Action decideAndPerformAction() {
+            // 1. Sentir o ambiente e Atualizar o Modelo Interno (Base de Conhecimento)
+            boolean currentHasStench = WumpusGameScreen.this.isStench(playerX, playerY);
+            boolean currentHasBreeze = WumpusGameScreen.this.isBreeze(playerX, playerY);
+            boolean currentHasGlitter = WumpusGameScreen.this.isGlitter();
+
+            // Marcar a célula atual como visitada e registrar as percepções
+            knowledgeBase[playerX][playerY].visited = true;
+            knowledgeBase[playerX][playerY].hasBreezePercept = currentHasBreeze;
+            knowledgeBase[playerX][playerY].hasStenchPercept = currentHasStench;
+            knowledgeBase[playerX][playerY].hasGlitterPercept = currentHasGlitter;
+
+            // Propagar informações de segurança para vizinhos não visitados
+            int[] dx = {0, 0, 1, -1};
+            int[] dy = {1, -1, 0, 0};
+
+            for (int i = 0; i < 4; i++) {
+                int nx = playerX + dx[i];
+                int ny = playerY + dy[i];
+
+                if (isValidCell(nx, ny) && !knowledgeBase[nx][ny].visited) {
+                    AgentWorldCell neighborCell = knowledgeBase[nx][ny];
+
+                    // Se a célula atual NÃO tem Brisa, seus vizinhos são seguros de Poços
+                    if (!currentHasBreeze) {
+                        neighborCell.isSafeFromPit = true;
+                    }
+                    // Se a célula atual NÃO tem Fedor, seus vizinhos são seguros de Wumpus
+                    if (!currentHasStench) {
+                        neighborCell.isSafeFromWumpus = true;
+                    }
+                    // Nota: Se a célula atual *tem* Brisa/Fedor, o vizinho é *potencialmente* perigoso.
+                    // Para um agente reativo simples, não tentaremos triangulação complexa aqui.
+                    // A ausência de percept é que nos dá certeza de segurança.
+                }
+            }
+
+            // 2. Seleção de Ação (Prioridades)
+
+            // A) Objetivo Imediato: Pegar Ouro
+            if (currentHasGlitter && !hasGold) {
+                WumpusGameScreen.this.searchForGold();
+                WumpusGameScreen.this.appendToLog("Agente (Modelo): Peguei o ouro!");
+                return Action.GRAB_GOLD;
+            }
+
+            // B) Condição de Vitória: Voltar para a entrada com o ouro
+            if (hasGold && playerX == 0 && playerY == 0) {
+                WumpusGameScreen.this.appendToLog("Agente (Modelo): Voltei para a entrada com o ouro. Missão cumprida!");
+                return Action.NO_ACTION;
+            }
+
+            // C) Lidar com a Ameaça do Wumpus (tentativa de inferência e tiro)
+            if (currentHasStench && wumpusAlive && arrowsLeft > 0) {
+                // Tenta encontrar um vizinho não visitado que não é seguro de Wumpus
+                // e que está na linha de tiro atual do agente.
+                int targetShootX = -1;
+                int targetShootY = -1;
+
+                int checkX = playerX;
+                int checkY = playerY;
+
+                int dirX = 0, dirY = 0;
+                switch(playerDirection) {
+                    case NORTH: dirY = 1; break;
+                    case EAST: dirX = 1; break;
+                    case SOUTH: dirY = -1; break;
+                    case WEST: dirX = -1; break;
+                }
+
+                // Verifica na direção atual para onde o Wumpus pode estar (1 célula à frente)
+                checkX += dirX;
+                checkY += dirY;
+
+                if (isValidCell(checkX, checkY) && !knowledgeBase[checkX][checkY].isSafeFromWumpus) {
+                    targetShootX = checkX;
+                    targetShootY = checkY;
+                } else { // Se não na direção atual, procura por qualquer vizinho suspeito
+                    for (int i = 0; i < 4; i++) {
+                        int nx = playerX + dx[i];
+                        int ny = playerY + dy[i];
+                        if (isValidCell(nx, ny) && !knowledgeBase[nx][ny].visited && !knowledgeBase[nx][ny].isSafeFromWumpus) {
+                            targetShootX = nx;
+                            targetShootY = ny;
+                            break; // Encontrou um possível alvo
+                        }
+                    }
+                }
+
+                if (targetShootX != -1) { // Se encontrou um alvo para atirar
+                    if (!isFacing(targetShootX, targetShootY)) {
+                        return turnTowards(targetShootX, targetShootY); // Primeiro vira para o alvo
+                    }
+                    WumpusGameScreen.this.shootArrow();
+                    WumpusGameScreen.this.appendToLog("Agente (Modelo): Senti fedor, atirei uma flecha na direção " + playerDirection + "!");
+                    return Action.SHOOT_ARROW;
+                } else { // Se não encontrou um alvo claro para atirar, mas ainda tem flechas
+                    WumpusGameScreen.this.shootArrow(); // Atira cegamente
+                    WumpusGameScreen.this.appendToLog("Agente (Modelo): Senti fedor, atirei uma flecha (sem alvo claro inferido).");
+                    return Action.SHOOT_ARROW;
+                }
+            }
+
+            // D) Explorar Células Seguras e Não Visitadas
+            List<Vector2> safeUnvisitedNeighbors = new ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                int nx = playerX + dx[i];
+                int ny = playerY + dy[i];
+
+                if (isValidCell(nx, ny)) {
+                    AgentWorldCell neighborCell = knowledgeBase[nx][ny];
+                    if (!neighborCell.visited && neighborCell.isSafeFromPit && neighborCell.isSafeFromWumpus) {
+                        safeUnvisitedNeighbors.add(new Vector2(nx, ny));
+                    }
+                }
+            }
+
+            if (!safeUnvisitedNeighbors.isEmpty()) {
+                Vector2 targetCell = null;
+                // Prioriza ir para frente se for seguro e não visitado
+                int forwardX = playerX, forwardY = playerY;
+                switch(playerDirection) {
+                    case NORTH: forwardY++; break;
+                    case EAST: forwardX++; break;
+                    case SOUTH: forwardY--; break;
+                    case WEST: forwardX--; break;
+                }
+                Vector2 forwardCell = new Vector2(forwardX, forwardY);
+                if (isValidCell(forwardX, forwardY) && safeUnvisitedNeighbors.contains(forwardCell)) {
+                    targetCell = forwardCell;
+                } else {
+                    // Caso contrário, escolhe qualquer vizinho seguro e não visitado
+                    targetCell = safeUnvisitedNeighbors.get(0);
+                }
+
+                if (targetCell != null) {
+                    if (isFacing((int)targetCell.x, (int)targetCell.y)) {
+                        WumpusGameScreen.this.moveForward();
+                        WumpusGameScreen.this.appendToLog("Agente (Modelo): Movi para frente para (" + (int)targetCell.x + "," + (int)targetCell.y + ").");
+                        return Action.MOVE_FORWARD;
+                    } else {
+                        return turnTowards((int)targetCell.x, (int)targetCell.y); // Vira na direção do alvo
+                    }
+                }
+            }
+
+            // E) Backtracking / Explorar Células Potencialmente Desconhecidas (se não houver caminho totalmente seguro)
+            // Para um agente reativo com modelo simples, isso significa buscar qualquer célula não visitada
+            // que não seja *conhecidamente* perigosa (poço ou wumpus inferido com certeza).
+            List<Vector2> unvisitedUnknownNeighbors = new ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                int nx = playerX + dx[i];
+                int ny = playerY + dy[i];
+                if (isValidCell(nx, ny)) {
+                    AgentWorldCell neighborCell = knowledgeBase[nx][ny];
+                    // Se não visitado E não é conhecido como poço E não é conhecido como wumpus, consideramos.
+                    // (isKnownPit/isKnownWumpus seriam setados por inferências mais complexas ou percepções diretas de perigo).
+                    if (!neighborCell.visited && !neighborCell.isKnownPit && !neighborCell.isKnownWumpus) {
+                        unvisitedUnknownNeighbors.add(new Vector2(nx, ny));
+                    }
+                }
+            }
+
+            if (!unvisitedUnknownNeighbors.isEmpty()) {
+                Vector2 targetCell = unvisitedUnknownNeighbors.get(0); // Pega o primeiro como fallback
+                if (isFacing((int)targetCell.x, (int)targetCell.y)) {
+                    WumpusGameScreen.this.moveForward();
+                    WumpusGameScreen.this.appendToLog("Agente (Modelo): Movi para uma sala desconhecida (" + (int)targetCell.x + "," + (int)targetCell.y + ").");
+                    return Action.MOVE_FORWARD;
+                } else {
+                    return turnTowards((int)targetCell.x, (int)targetCell.y);
+                }
+            }
+
+            // F) Se completamente preso, apenas virar
+            WumpusGameScreen.this.appendToLog("Agente (Modelo): Estou preso ou sem opções seguras. Virando para tentar outra coisa.");
+            WumpusGameScreen.this.turnLeft();
+            return Action.TURN_LEFT;
+        }
+
+        /**
+         * Verifica se o agente está virado para a célula alvo.
+         */
+        private boolean isFacing(int targetX, int targetY) {
+            if (playerDirection == Direction.NORTH && targetY > playerY && targetX == playerX) return true;
+            if (playerDirection == Direction.EAST && targetX > playerX && targetY == playerY) return true;
+            if (playerDirection == Direction.SOUTH && targetY < playerY && targetX == playerX) return true;
+            if (playerDirection == Direction.WEST && targetX < playerX && targetY == playerY) return true;
+            return false;
+        }
+
+        /**
+         * Vira o agente em direção à célula alvo.
+         * @return A ação tomada (TURN_LEFT ou TURN_RIGHT).
+         */
+        private Action turnTowards(int targetX, int targetY) {
+            // Lógica para determinar a melhor direção para virar
+            // Isso pode ser aprimorado com mais inteligência (ex: virar na direção mais curta)
+            // Por simplicidade, tenta virar para uma direção que o aproxime do alvo.
+            // Aqui estamos fazendo uma virada simples (esquerda ou direita).
+
+            // Calcula a diferença de coordenadas
+            int deltaX = targetX - playerX;
+            int deltaY = targetY - playerY;
+
+            if (deltaX > 0) { // Alvo está a Leste
+                if (playerDirection == Direction.NORTH) { WumpusGameScreen.this.turnRight(); return Action.TURN_RIGHT; }
+                if (playerDirection == Direction.SOUTH) { WumpusGameScreen.this.turnLeft(); return Action.TURN_LEFT; }
+                // Se já estiver no Leste, isso não deve ser chamado, mas como fallback
+                // se estiver no Oeste, precisa virar duas vezes. Priorizamos uma virada única.
+                WumpusGameScreen.this.turnLeft(); // Ou turnRight, dependendo da rotação
+                return Action.TURN_LEFT;
+            } else if (deltaX < 0) { // Alvo está a Oeste
+                if (playerDirection == Direction.NORTH) { WumpusGameScreen.this.turnLeft(); return Action.TURN_LEFT; }
+                if (playerDirection == Direction.SOUTH) { WumpusGameScreen.this.turnRight(); return Action.TURN_RIGHT; }
+                WumpusGameScreen.this.turnRight(); // Ou turnLeft
+                return Action.TURN_RIGHT;
+            } else if (deltaY > 0) { // Alvo está ao Norte
+                if (playerDirection == Direction.EAST) { WumpusGameScreen.this.turnLeft(); return Action.TURN_LEFT; }
+                if (playerDirection == Direction.WEST) { WumpusGameScreen.this.turnRight(); return Action.TURN_RIGHT; }
+                WumpusGameScreen.this.turnRight(); // Ou turnLeft
+                return Action.TURN_RIGHT;
+            } else if (deltaY < 0) { // Alvo está ao Sul
+                if (playerDirection == Direction.EAST) { WumpusGameScreen.this.turnRight(); return Action.TURN_RIGHT; }
+                if (playerDirection == Direction.WEST) { WumpusGameScreen.this.turnLeft(); return Action.TURN_LEFT; }
+                WumpusGameScreen.this.turnLeft(); // Ou turnRight
+                return Action.TURN_LEFT;
+            }
+
+            // Caso de fallback ou alvo na mesma célula
+            WumpusGameScreen.this.turnLeft();
+            return Action.TURN_LEFT;
+        }
+    }
+
+    public class ReactiveAgentV3 {
+
     }
 }

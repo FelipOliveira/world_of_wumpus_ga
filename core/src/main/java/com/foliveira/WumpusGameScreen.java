@@ -34,6 +34,7 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.foliveira.config.Messages;
 import com.foliveira.utils.GdxUtils;
 import com.foliveira.utils.debug.DebugCameraController;
+import com.foliveira.utils.ga.GeneticAlgorithm;
 
 import java.util.Comparator;
 import java.util.HashSet;
@@ -44,13 +45,14 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 
 public class WumpusGameScreen extends ApplicationAdapter {
-    private static final int WORLD_SIZE = 4;
+    public static final int WORLD_SIZE = 4;
     private static final int NUM_PITS = 3;
-    private static final int NUM_BATS = 2;
+    public static final int NUM_BATS = 2;
     private static final int NUM_WUMPUS = 1;
-    private static final int NUM_ARROWS = 1;
+    public static final int NUM_ARROWS = 1;
     private static final int BASE_VIRTUAL_WIDTH = 320;
     private static final int BASE_VIRTUAL_HEIGHT = 240;
     private static final float LOG_BAR_VIRTUAL_HEIGHT = 50f;
@@ -86,6 +88,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private Texture northArrowDirectionTexture;
     private Texture southArrowDirectionTexture;
     private Texture westArrowDirectionTexture;
+    private Texture mapTexture;
     private SpriteBatch batch;
     //private AssetManager manager;
     private OrthographicCamera gameplayCamera;
@@ -118,7 +121,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private Array<Vector2> pitPositions;
     private Array<Vector2> batPositions;
     private int goldX, goldY;
-    private enum GameState {
+    public enum GameState {
         PLAYING, GAME_OVER, GAME_WON
     }
     private GameState gameState;
@@ -134,14 +137,23 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private float gameAreaHeight;
 
     private MapScreen mapScreen;      // Nova tela de mapa
+    public WumpusWorldState currentGameState;
     private HashSet<Vector2> visitedRooms; // Para rastrear salas visitadas
     private int score; // Placar do jogo
 
 //    private ReactiveAgent agent;
     private ReactiveAgentV2 agent;
+    private GeneticAgent geneticAgent;
+    private NeuralAgent neuralAgent;
     private boolean isAgentPlaying = false;
     private float agentActionTimer = 0f;
     private static final float AGENT_ACTION_DELAY = 0.5f;
+
+    private boolean shouldRepositionGoldAfterDeath = false;
+    private int repositionGoldTargetX = -1;
+    private int repositionGoldTargetY = -1;
+
+    private GeneticAlgorithm ga;
 
     @Override
     public void create() {
@@ -186,8 +198,11 @@ public class WumpusGameScreen extends ApplicationAdapter {
         gameAreaHeight = BASE_VIRTUAL_HEIGHT - (logHeight + infoBarHeight);
         gameAreaY = infoBarHeight;
 
-        agent = new ReactiveAgentV2();
+        //agent = new ReactiveAgentV2();
+        //geneticAgent = new GeneticAgent();
         setupUI();
+        neuralAgent = new NeuralAgent();
+        ga = new GeneticAlgorithm();
 
         initializeWorld();
         gameState = GameState.PLAYING;
@@ -245,7 +260,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         moveButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-               if (gameState == GameState.PLAYING) moveForward();
+               if (currentGameState.gameState == GameState.PLAYING) moveForward(currentGameState);
             }
         });
         moveButton.addListener(new ClickListener() {
@@ -262,7 +277,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         turnLeftButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                if (gameState == GameState.PLAYING) turnLeft();
+                if (currentGameState.gameState == GameState.PLAYING) turnLeft(currentGameState);
             }
         });
         turnLeftButton.addListener(new ClickListener() {
@@ -279,7 +294,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         turnRightButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                if (gameState == GameState.PLAYING) turnRight();
+                if (currentGameState.gameState == GameState.PLAYING) turnRight(currentGameState);
             }
         });
         turnRightButton.addListener(new ClickListener() {
@@ -305,7 +320,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         searchButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                if (gameState == GameState.PLAYING) searchForGold();
+                if (currentGameState.gameState == GameState.PLAYING) searchForGold(currentGameState);
             }
         });
         searchButton.addListener(new ClickListener() {
@@ -322,7 +337,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         specialButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                if (gameState == GameState.PLAYING) shootArrow();
+                if (currentGameState.gameState == GameState.PLAYING) shootArrow(currentGameState);
             }
         });
         specialButton.addListener(new ClickListener() {
@@ -339,7 +354,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         mapButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                if (gameState == GameState.PLAYING) {
+                if (currentGameState.gameState == GameState.PLAYING) {
                     boolean mapVisible = !mapScreen.isVisible();
                     mapScreen.setVisible(mapVisible);
                     setGameButtonsEnabled(!mapVisible);
@@ -414,8 +429,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 appendToLog(Messages.WELCOME_LOG);
                 updatePerceptions();
                 updateInfoBar(Messages.INITIAL_MESSAGE_INFO);
-                setGameButtonsEnabled(true);
-                mapButton.setDisabled(false);
+                setGameButtonsEnabled(!isAgentPlaying);
+                mapButton.setDisabled(isAgentPlaying);
                 mapScreen.setVisible(false);
             }
         });
@@ -480,6 +495,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
             northArrowDirectionTexture = new Texture(Gdx.files.internal("texture/north_arrow_direction.png"));
             southArrowDirectionTexture = new Texture(Gdx.files.internal("texture/south_arrow_direction.png"));
             westArrowDirectionTexture = new Texture(Gdx.files.internal("texture/west_arrow_direction.png"));
+            mapTexture = new Texture(Gdx.files.internal("texture/map-iso.png"));
 
         } catch (Exception e) {
             Gdx.app.error(WumpusGameScreen.class.getName(), "Error to load textures: " + e.getMessage());
@@ -488,24 +504,28 @@ public class WumpusGameScreen extends ApplicationAdapter {
     }
 
     public void initializeWorld(){
-        world = new char[WORLD_SIZE][WORLD_SIZE];
+        currentGameState = new WumpusWorldState();
+        currentGameState.worldGrid = new char[WORLD_SIZE][WORLD_SIZE];
         for (int i=0;i<WORLD_SIZE;i++) {
             for (int j=0;j<WORLD_SIZE;j++) {
-                world[i][j] = ' ';
+                currentGameState.worldGrid[i][j] = ' ';
             }
         }
 
-        score = 0;
-        visitedRooms = new HashSet<>();
+        currentGameState.score = 0;
+        currentGameState.visitedRooms = new HashSet<>();
+        currentGameState.playerX = 0;
+        currentGameState.playerY = 0;
+        currentGameState.worldGrid[currentGameState.playerX][currentGameState.playerY] = 'P';
+        currentGameState.visitedRooms.add(new Vector2(currentGameState.playerX, currentGameState.playerY));
+        currentGameState.playerDirection = Direction.NORTH;
+        currentGameState.hasGold = false;
+        currentGameState.arrowsLeft = NUM_ARROWS;
+        currentGameState.wumpusAlive = true;
+        currentGameState.gameState = GameState.PLAYING;
 
-        playerX = 0;
-        playerY = 0;
-        world[playerX][playerX] = 'P';
-
-        visitedRooms.add(new Vector2(playerX, playerY));
-
-        pitPositions = new Array<>();
-        batPositions = new Array<>();
+        currentGameState.pitPositions = new Array<>();
+        currentGameState.batPositions = new Array<>();
 
         boolean validLayout = false;
         int attempts = 0;
@@ -513,34 +533,39 @@ public class WumpusGameScreen extends ApplicationAdapter {
             attempts++;
             for (int i=0;i<WORLD_SIZE;i++) {
                 for (int j=0;j<WORLD_SIZE;j++) {
-                    world[i][j] = ' ';
+                    currentGameState.worldGrid[i][j] = ' ';
                 }
             }
 
-            world[playerX][playerY] = 'P';
+            currentGameState.worldGrid[playerX][playerY] = 'P';
 
-            wumpusX = -1;
-            wumpusY = -1;
-            pitPositions.clear();
-            batPositions.clear();
-            goldX = -1;
-            goldY = -1;
+            currentGameState.wumpusX = -1;
+            currentGameState.wumpusY = -1;
+            currentGameState.pitPositions.clear();
+            currentGameState.batPositions.clear();
+            currentGameState.goldX = -1;
+            currentGameState.goldY = -1;
 
             do {
-                wumpusX = random.nextInt(WORLD_SIZE);
-                wumpusY = random.nextInt(WORLD_SIZE);
-            } while (wumpusX == 0 && wumpusY == 0);
+                currentGameState.wumpusX = random.nextInt(WORLD_SIZE);
+                currentGameState.wumpusY = random.nextInt(WORLD_SIZE);
+            } while (currentGameState.wumpusX == 0 && currentGameState.wumpusY == 0);
 
-            world[wumpusX][wumpusY] = 'W';
+            currentGameState.worldGrid[wumpusX][wumpusY] = 'W';
 
             for (int i=0;i<NUM_PITS;i++) {
                 int x, y;
                 do {
                     x = random.nextInt(WORLD_SIZE);
                     y = random.nextInt(WORLD_SIZE);
-                } while ((x == 0 && y == 0) || (x == wumpusX && y == wumpusY) || isPitAt(x,y) || isBatAt(x,y));
-                pitPositions.add(new Vector2(x, y));
-                world[x][y] = 'H';
+                } while (
+                    (x == 0 && y == 0) ||
+                    (x == currentGameState.wumpusX && y == currentGameState.wumpusY) ||
+                    isPitAt(x,y, currentGameState) ||
+                    isBatAt(x,y, currentGameState)
+                );
+                currentGameState.pitPositions.add(new Vector2(x, y));
+                currentGameState.worldGrid[x][y] = 'H';
             }
 
             for (int i=0;i<NUM_BATS;i++) {
@@ -548,19 +573,28 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 do {
                     x = random.nextInt(WORLD_SIZE);
                     y = random.nextInt(WORLD_SIZE);
-                } while ((x == 0 && y == 0) || (x == wumpusX && y == wumpusY) || isPitAt(x,y) || isBatAt(x,y));
-                batPositions.add(new Vector2(x, y));
-                world[x][y] = 'B';
+                } while (
+                    (x == 0 && y == 0) ||
+                    (x == currentGameState.wumpusX && y == currentGameState.wumpusY) ||
+                    isPitAt(x,y, currentGameState) ||
+                    isBatAt(x,y, currentGameState)
+                );
+                currentGameState.batPositions.add(new Vector2(x, y));
+                currentGameState.worldGrid[x][y] = 'B';
             }
 
             do {
-                goldX = random.nextInt(WORLD_SIZE);
-                goldY = random.nextInt(WORLD_SIZE);
-            } while ((goldX == 0 && goldY == 0)|| (goldX == wumpusX && goldY == wumpusY) || isPitAt(goldX,goldY) || isBatAt(goldX,goldY));
+                currentGameState.goldX = random.nextInt(WORLD_SIZE);
+                currentGameState.goldY = random.nextInt(WORLD_SIZE);
+            } while (
+                (currentGameState.goldX == 0 && currentGameState.goldY == 0) ||
+                (currentGameState.goldX == currentGameState.wumpusX && currentGameState.goldY == currentGameState.wumpusY) ||
+                isPitAt(currentGameState.goldX, currentGameState.goldY, currentGameState) || isBatAt(goldX,goldY, currentGameState)
+            );
 
-            world[goldX][goldY] = 'G';
+            currentGameState.worldGrid[goldX][goldY] = 'G';
 
-            validLayout = hasValidPathToGold() && hasValidPathToWumpus();
+            validLayout = hasValidPathToGold(currentGameState) && hasValidPathToWumpus(currentGameState);
 
             if (!validLayout) {
                 Gdx.app.log(WumpusGameScreen.class.getName(), "invalid layout, trying again...");
@@ -571,18 +605,22 @@ public class WumpusGameScreen extends ApplicationAdapter {
         } else {
             Gdx.app.log(WumpusGameScreen.class.getName(), "valid layout generated after " + attempts + " attempts");
         }
-        agent.initializeKnowledgeBase();
+        //geneticAgent.initializeKnowledgeBase();
+        //neuralAgent.initializeNetwork();
+        //GENETIC ALGORITHM=============================================================================
+        ga.initializePopulation(this);
+        ga.run();
     }
 
-    private boolean isPitAt(int x, int y) {
-        for (Vector2 pit : pitPositions) {
+    private boolean isPitAt(int x, int y, WumpusWorldState state) {
+        for (Vector2 pit : state.pitPositions) {
             if (pit.x == x && pit.y == y) return true;
         }
         return false;
     }
 
-    private boolean isBatAt(int x, int y) {
-        for (Vector2 bat : batPositions) {
+    private boolean isBatAt(int x, int y, WumpusWorldState state) {
+        for (Vector2 bat : state.batPositions) {
             if (bat.x == x && bat.y == y) return true;
         }
         return false;
@@ -620,14 +658,14 @@ public class WumpusGameScreen extends ApplicationAdapter {
         return Math.abs(endX - startX) + Math.abs(endY - startY);
     }
 
-    private boolean hasValidPathToGold() {
-        return findPath(playerX, playerY, goldX, goldY);
+    private boolean hasValidPathToGold(WumpusWorldState state) {
+        return findPath(state.playerX, state.playerY, state.goldX, state.goldY);
     }
 
-    private  boolean hasValidPathToWumpus() {
-        if (!wumpusAlive) return true;
+    private  boolean hasValidPathToWumpus(WumpusWorldState state) {
+        if (!state.wumpusAlive) return true;
 
-        return findPath(playerX, playerY, wumpusX, wumpusY);
+        return findPath(state.playerX, state.playerY, state.wumpusX, state.wumpusY);
     }
 
     private boolean findPath(int startX, int startY, int endX, int endY) {
@@ -675,7 +713,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
             if (
                 newX >= 0 && newX < WORLD_SIZE
                 && newY >=0 && newY < WORLD_SIZE &&
-                world[newX][newY] != 'H'
+                currentGameState.worldGrid[newX][newY] != 'H'
             ) neighbors.add(new Node(newX, newY));
         }
         return neighbors;
@@ -683,10 +721,10 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
     @Override
     public void render() {
-        if (gameState == GameState.PLAYING && isAgentPlaying) {
+        if (currentGameState.gameState == GameState.PLAYING && isAgentPlaying) {
             agentActionTimer -= Gdx.graphics.getDeltaTime();
             if (agentActionTimer <= 0) {
-                agent.decideAndPerformAction();
+                neuralAgent.decideAndPerformAction(); // Agente decide e executa a próxima ação
                 agentActionTimer = AGENT_ACTION_DELAY;
             }
         }
@@ -701,50 +739,36 @@ public class WumpusGameScreen extends ApplicationAdapter {
         batch.setProjectionMatrix(gameplayCamera.combined);
 
         batch.begin();
-        drawHexagonalRoom();
+        drawHexagonalRoom(currentGameState);
         batch.end();
 
         hudStage.act(Gdx.graphics.getDeltaTime());
         hudStage.draw();
 
-        /*if (gameState == GameState.GAME_OVER || gameState == GameState.GAME_WON) {
+        if (currentGameState.gameState == GameState.GAME_OVER || currentGameState.gameState == GameState.GAME_WON) {
             restartButton.setVisible(true);
             setGameButtonsEnabled(false);
             mapButton.setDisabled(true);
             mapScreen.setVisible(false);
+            // O botão do agente permanece habilitado para permitir que ele continue aprendendo
+            // ou seja desativado manualmente.
         } else {
             restartButton.setVisible(false);
-            if (mapScreen.isVisible()) {
+            if (isAgentPlaying) { // Se o agente está jogando, desabilita os botões manuais
                 setGameButtonsEnabled(false);
                 mapButton.setDisabled(false);
-            } else {
+            } else { // Se o jogador está no controle, habilita botões manuais e mapa
                 setGameButtonsEnabled(true);
                 mapButton.setDisabled(false);
-            }
-        }*/
-        if (gameState == GameState.GAME_OVER || gameState == GameState.GAME_WON) {
-            restartButton.setVisible(true);
-            setGameButtonsEnabled(false);
-            mapButton.setDisabled(true);
-            mapScreen.setVisible(false);
-            toggleAgentButton.setDisabled(true);
-        } else {
-            restartButton.setVisible(false);
-            if (isAgentPlaying) {
-                setGameButtonsEnabled(false);
-                mapButton.setDisabled(true);
-            } else {
-                setGameButtonsEnabled(true);
-                mapButton.setDisabled(false);
-                if (mapScreen.isVisible()){
+                if (mapScreen.isVisible()){ // Se o mapa está aberto, desabilita todos os outros botões de gameplay
                     setGameButtonsEnabled(false);
                 }
             }
-            toggleAgentButton.setDisabled(false);
+            toggleAgentButton.setDisabled(false); // Habilita o botão do agente durante o jogo
         }
     }
 
-    private void drawHexagonalRoom() {
+    private void drawHexagonalRoom(WumpusWorldState state) {
         // Dimensões da viewport de gameplay (EFFECTIVE_GAMEPLAY_VIRTUAL_WIDTH/HEIGHT)
         float viewWidth = gameplayViewport.getWorldWidth(); // 320
         float viewHeight = gameplayViewport.getWorldHeight() - logHeight; // 165
@@ -775,37 +799,37 @@ public class WumpusGameScreen extends ApplicationAdapter {
         float passageFloorHeight = hexRoomDrawHeight * 0.12f; // ~20px
         */
         // Passagem Norte (canto superior esquerdo, junto à parede esquerda)
-        if (isValidCell(playerX, playerY + 1)) {
+        if (isValidCell(state.playerX, state.playerY + 1)) {
 //            float northPassageX = renderX + hexRoomDrawWidth * 0.05f; // Mais à esquerda
 //            float northPassageY = renderY + hexRoomDrawHeight * 0.65f; // Mais para cima
 //            batch.draw(hexPassageNorthTexture, northPassageX, northPassageY, passageWallWidth, passageWallHeight);
             batch.draw(hexPassageNorthTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
         }
         // Passagem Leste (canto superior direito, junto à parede direita)
-        if (isValidCell(playerX + 1, playerY)) {
+        if (isValidCell(state.playerX + 1, state.playerY)) {
 //            float eastPassageX = renderX + hexRoomDrawWidth * 0.70f; // Mais à direita
 //            float eastPassageY = renderY + hexRoomDrawHeight * 0.65f; // Mais para cima
 //            batch.draw(hexPassageEastTexture, eastPassageX, eastPassageY, passageWallWidth, passageWallHeight);
             batch.draw(hexPassageEastTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
         }
         // Passagem Sul (canto inferior direito)
-        if (isValidCell(playerX, playerY - 1)) {
+        if (isValidCell(state.playerX, state.playerY - 1)) {
 //            float southPassageX = renderX + hexRoomDrawWidth * 0.60f; // Mais à direita
 //            float southPassageY = renderY + hexRoomDrawHeight * 0.05f; // Mais para baixo
 //            batch.draw(hexPassageSouthTexture, southPassageX, southPassageY, passageFloorWidth, passageFloorHeight);
             batch.draw(hexPassageSouthTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
         }
         // Passagem Oeste (canto inferior esquerdo)
-        if (isValidCell(playerX - 1, playerY)) {
+        if (isValidCell(state.playerX - 1, state.playerY)) {
 //            float westPassageX = renderX + hexRoomDrawWidth * 0.15f; // Mais à esquerda
 //            float westPassageY = renderY + hexRoomDrawHeight * 0.05f; // Mais para baixo
 //            batch.draw(hexPassageWestTexture, westPassageX, westPassageY, passageFloorWidth, passageFloorHeight);
             batch.draw(hexPassageWestTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
         }
-        if (isStench(playerX, playerY)){
+        if (isStench(state.playerX, state.playerY, state)){
             batch.draw(stenchTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
         }
-        if (isBreeze(playerX, playerY)){
+        if (isBreeze(state.playerX, state.playerY, state)){
             batch.draw(breezeTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
         }
         /*
@@ -825,7 +849,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         float playerDrawX = roomFloorCenterX - playerDrawSize / 2f;
         float playerDrawY = roomFloorCenterY - playerDrawSize / 2f;
         */
-        switch (playerDirection) {
+        switch (state.playerDirection) {
             case NORTH:
                 batch.draw(northArrowDirectionTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
                 break;
@@ -849,7 +873,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
             batch.draw(wumpusTexture, itemDrawX, itemDrawY, itemDrawSize, itemDrawSize);
         }
         */
-        if (playerX == goldX && playerY == goldY && !hasGold) {
+        if (state.playerX == state.goldX && state.playerY == state.goldY && !state.hasGold) {
             //batch.draw(goldTexture, itemDrawX, itemDrawY, itemDrawSize, itemDrawSize);
             batch.draw(glitterTexture, renderX, renderY, hexRoomDrawWidth, hexRoomDrawHeight);
         }
@@ -877,7 +901,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         float playerSize = gameAreaWidth * 0.2f;
 
         // draw north wall
-        if (isValidCell(playerX, playerY + 1) && !isPitAt(playerX, playerY + 1) && !isBatAt(playerX, playerY + 1)) {
+        if (isValidCell(playerX, playerY + 1) && !isPitAt(playerX, playerY + 1, currentGameState) && !isBatAt(playerX, playerY + 1, currentGameState)) {
             batch.draw(
                 passageTexture,
                 renderX + gameAreaWidth * 0.35f,
@@ -896,7 +920,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         }
 
         // draw south wall
-        if (isValidCell(playerX, playerY - 1) && !isPitAt(playerX, playerY - 1) && !isBatAt(playerX, playerY - 1)) {
+        if (isValidCell(playerX, playerY - 1) && !isPitAt(playerX, playerY - 1, currentGameState) && !isBatAt(playerX, playerY - 1, currentGameState)) {
             batch.draw(
                 passageTexture,
                 renderX + gameAreaWidth * 0.35f,
@@ -915,7 +939,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         }
 
         // draw east wall
-        if (isValidCell(playerX + 1, playerY) && !isPitAt(playerX + 1, playerY) && !isBatAt(playerX + 1, playerY)) {
+        if (isValidCell(playerX + 1, playerY) && !isPitAt(playerX + 1, playerY,currentGameState) && !isBatAt(playerX + 1, playerY, currentGameState)) {
             batch.draw(
                 passageTexture,
                 renderX + gameAreaWidth * 0.8f,
@@ -934,7 +958,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         }
 
         // draw west wall
-        if (isValidCell(playerX - 1, playerY) && !isPitAt(playerX - 1, playerY) && !isBatAt(playerX - 1, playerY)) {
+        if (isValidCell(playerX - 1, playerY) && !isPitAt(playerX - 1, playerY, currentGameState) && !isBatAt(playerX - 1, playerY, currentGameState)) {
             batch.draw(
                 passageTexture,
                 renderX,
@@ -983,7 +1007,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
             );
         }
         // draw pit
-        if (isPitAt(playerX, playerY)) {
+        if (isPitAt(playerX, playerY, currentGameState)) {
             batch.draw(pitTexture,
                 renderX + gameAreaWidth * 0.45f - itemSize / 2,
                 renderY + gameAreaHeight * 0.45f - itemSize / 2,
@@ -992,7 +1016,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
             );
         }
         // draw bat
-        if (isBatAt(playerX, playerY)) {
+        if (isBatAt(playerX, playerY, currentGameState)) {
             batch.draw(batTexture,
                 renderX + gameAreaWidth * 0.45f - itemSize / 2,
                 renderY + gameAreaHeight * 0.45f - itemSize / 2,
@@ -1006,13 +1030,12 @@ public class WumpusGameScreen extends ApplicationAdapter {
         return x >= 0 && x < WORLD_SIZE && y >=0 && y < WORLD_SIZE;
     }
 
-    private void moveForward() {
-        if (gameState != GameState.PLAYING) return;
-        score--;
-        int newX = playerX;
-        int newY = playerY;
+    public void moveForward(WumpusWorldState state) {
+        if (state.gameState != GameState.PLAYING) return;
+        int newX = state.playerX;
+        int newY = state.playerY;
 
-        switch (playerDirection) {
+        switch (state.playerDirection) {
             case NORTH:
                 newY++ ;
                 break;
@@ -1028,71 +1051,73 @@ public class WumpusGameScreen extends ApplicationAdapter {
         }
 
         if (isValidCell(newX, newY)) {
-            world[playerX][playerY] = ' ';
-            playerX = newX;
-            playerY = newY;
-            world[playerY][playerY] = 'P';
+            state.score--;
+            state.worldGrid[playerX][playerY] = ' ';
+            state.playerX = newX;
+            state.playerY = newY;
+            state.worldGrid[playerY][playerY] = 'P';
             appendToLog(Messages.MOVE_ACTION);
-            visitedRooms.add(new Vector2(playerX, playerY));
-            checkRoomContent();
+            state.visitedRooms.add(new Vector2(state.playerX, state.playerY));
+            checkRoomContent(state);
             updatePerceptions();
         } else {
+            state.score -= 2;
             appendToLog(Messages.AGENT_HIT_WALL);
         }
     }
 
-    private void turnLeft() {
-        if (gameState != GameState.PLAYING) return;
-        switch (playerDirection) {
+    public void turnLeft(WumpusWorldState state) {
+        if (state.gameState != GameState.PLAYING) return;
+        switch (state.playerDirection) {
             case NORTH:
-                playerDirection = Direction.WEST;
+                state.playerDirection = Direction.WEST;
                 break;
             case EAST:
-                playerDirection = Direction.NORTH;
+                state.playerDirection = Direction.NORTH;
                 break;
             case SOUTH:
-                playerDirection = Direction.EAST;
+                state.playerDirection = Direction.EAST;
                 break;
             case WEST:
-                playerDirection = Direction.SOUTH;
+                state.playerDirection = Direction.SOUTH;
                 break;
         }
         appendToLog(Messages.TURN_LEFT_ACTION + " " + Messages.YOU_ARE_FACING + " [" + playerDirection + "]");
         updatePerceptions();
     }
 
-    private void turnRight() {
-        if (gameState != GameState.PLAYING) return;
-        switch (playerDirection) {
+    public void turnRight(WumpusWorldState state) {
+        if (state.gameState != GameState.PLAYING) return;
+        switch (state.playerDirection) {
             case NORTH:
-                playerDirection = Direction.EAST;
+                state.playerDirection = Direction.EAST;
                 break;
             case EAST:
-                playerDirection = Direction.SOUTH;
+                state.playerDirection = Direction.SOUTH;
                 break;
             case SOUTH:
-                playerDirection = Direction.WEST;
+                state.playerDirection = Direction.WEST;
                 break;
             case WEST:
-                playerDirection = Direction.NORTH;
+                state.playerDirection = Direction.NORTH;
                 break;
         }
         appendToLog(Messages.TURN_RIGHT_ACTION + " " + Messages.YOU_ARE_FACING + " [" + playerDirection + "]");
         updatePerceptions();
     }
 
-    private void shootArrow() {
-        if (gameState != GameState.PLAYING) return;
-        if (arrowsLeft > 0) {
+    public void shootArrow(WumpusWorldState state) {
+        if (state.gameState != GameState.PLAYING) return;
+        if (state.arrowsLeft > 0) {
             String message = Messages.SHOOT_ARROW_ACTION;
-            arrowsLeft--;
-            score -= 10;
+            state.arrowsLeft--;
+            state.score -= 10;
 
-            int currentX = playerX;
-            int currentY = playerY;
+            int currentX = state.playerX;
+            int currentY = state.playerY;
             int dx = 0, dy = 0;
 
-            switch (playerDirection) {
+            switch (state.playerDirection) {
                 case NORTH:
                     dy = 1;
                     break;
@@ -1110,14 +1135,14 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 currentX += dx;
                 currentY += dy;
 
-                if (currentX == wumpusX && currentY == wumpusY && wumpusAlive) {
+                if (currentX == state.wumpusX && currentY == state.wumpusY && state.wumpusAlive) {
                     //appendToLog(Messages.ARROW_HIT_WUMPUS);
                     message = message.concat(Messages.ARROW_HIT_WUMPUS);
-                    wumpusAlive = false;
-                    score += 200;
-                    world[wumpusX][wumpusY] = ' ';
-                    if (hasGold && playerX == 0 && playerY == 0) {
-                        gameState = GameState.GAME_WON;
+                    state.wumpusAlive = false;
+                    state.score += 200;
+                    state.worldGrid[wumpusX][wumpusY] = ' ';
+                    if (state.hasGold && state.playerX == 0 && state.playerY == 0) {
+                        state.gameState = GameState.GAME_WON;
                         appendToLog(Messages.AGENT_WON_LOG);
                         appendToLog(Messages.GAME_OVER_MESSAGE);
                         //appendToLog(Messages.RESET_MESSAGE);
@@ -1133,41 +1158,41 @@ public class WumpusGameScreen extends ApplicationAdapter {
         }
     }
 
-    private void searchForGold() {
-        if (gameState != GameState.PLAYING) return;
-        if (playerX == goldX && playerY == goldY && !hasGold) {
-            hasGold = true;
-            score += 500;
-            world[goldX][goldY] = ' ';
+    public void searchForGold(WumpusWorldState state) {
+        if (state.gameState != GameState.PLAYING) return;
+        if (state.playerX == state.goldX && state.playerY == state.goldY && !state.hasGold) {
+            state.hasGold = true;
+            state.score += 500;
+            state.worldGrid[goldX][goldY] = ' ';
             appendToLog(Messages.FOUND_GOLD);
             defaultInfoBarMessage = Messages.GOT_GOLD_INFO;
             updateInfoBar(defaultInfoBarMessage);
             updatePerceptions();
-        } else if (hasGold) {
+        } else if (state.hasGold) {
             appendToLog("You already got the gold");
         } else {
             appendToLog(Messages.FOUND_NOTHING);
         }
     }
 
-    private void checkRoomContent() {
-        if (isPitAt(playerX, playerY)) {
-            gameState = GameState.GAME_OVER;
+    private void checkRoomContent(WumpusWorldState state) {
+        if (isPitAt(state.playerX, state.playerY, state)) {
+            state.gameState = GameState.GAME_OVER;
             appendToLog(Messages.AGENT_FELL_PIT);
-            score -= 1000;
+            state.score -= 1000;
             appendToLog(Messages.GAME_OVER_MESSAGE + score);
             //appendToLog(Messages.RESET_MESSAGE);
 //        } else if (isBatAt(playerX,playerY)) {
 //            teleportPlayer();
 //            appendToLog("You got teleported by a bat");
-        } else if (playerX == wumpusX && playerY == wumpusY && wumpusAlive) {
-            gameState = GameState.GAME_OVER;
+        } else if (state.playerX == state.wumpusX && state.playerY == state.wumpusY && state.wumpusAlive) {
+            state.gameState = GameState.GAME_OVER;
             appendToLog(Messages.AGENT_CAUGHT_BY_WUMPUS);
-            score -= 1000;
+            state.score -= 1000;
             appendToLog(Messages.GAME_OVER_MESSAGE + score);
             //appendToLog(Messages.RESET_MESSAGE);
-        } else if (hasGold && playerX == 0 && playerY == 0) {
-            gameState = GameState.GAME_WON;
+        } else if (state.hasGold && state.playerX == 0 && state.playerY == 0) {
+            state.gameState = GameState.GAME_WON;
             appendToLog(Messages.AGENT_WON_LOG);
             appendToLog(Messages.GAME_OVER_MESSAGE + score);
             //appendToLog(Messages.RESET_MESSAGE);
@@ -1190,20 +1215,19 @@ public class WumpusGameScreen extends ApplicationAdapter {
     }
 
     private void updatePerceptions() {
-        if (gameState == GameState.PLAYING) {
-            mapScreen.update(playerX, playerY, visitedRooms, wumpusAlive, hasGold, arrowsLeft, score);
+        if (currentGameState.gameState == GameState.PLAYING) {
             String perceptions = Messages.YOU_FEEL;
             boolean sensedSomething = false;
 
-            if (isStench(playerX, playerY)) {
+            if (isStench(currentGameState.playerX, currentGameState.playerY, currentGameState)) {
                 perceptions += Messages.STENCH;
                 sensedSomething = true;
             }
-            if (isBreeze(playerX, playerY)) {
+            if (isBreeze(currentGameState.playerX, currentGameState.playerY, currentGameState)) {
                 perceptions += Messages.BREEZE;
                 sensedSomething = true;
             }
-            if (isGlitter()) {
+            if (isGlitter(currentGameState)) {
                 perceptions += Messages.GLITTER;
                 sensedSomething = true;
             }
@@ -1211,27 +1235,37 @@ public class WumpusGameScreen extends ApplicationAdapter {
                 perceptions += Messages.NOTHING;
             }
             appendToLog(perceptions);
+
+            mapScreen.update(
+                currentGameState.playerX,
+                currentGameState.playerY,
+                currentGameState.visitedRooms,
+                currentGameState.wumpusAlive,
+                currentGameState.hasGold,
+                currentGameState.arrowsLeft,
+                currentGameState.score
+            );
         }
     }
 
-    private boolean isStench(int x, int y) {
-        if (!wumpusAlive) return false;
+    public boolean isStench(int x, int y, WumpusWorldState state) {
+        if (!state.wumpusAlive) return false;
         int [] dx = {0,0,1,-1};
         int [] dy = {1,-1,0,0};
 
         for (int i=0;i<4;i++){
             int checkX = x + dx[i];
             int checkY = y + dy[i];
-            if (isValidCell(checkX, checkY) && checkX == wumpusX && checkY == wumpusY) return true;
+            if (isValidCell(checkX, checkY) && checkX == state.wumpusX && checkY == state.wumpusY) return true;
         }
         return false;
     }
 
-    private boolean isBreeze(int x, int y) {
+    public boolean isBreeze(int x, int y, WumpusWorldState state) {
         int [] dx = {0,0,1,-1};
         int [] dy = {1,-1,0,0};
 
-        for (Vector2 pit : pitPositions) {
+        for (Vector2 pit : state.pitPositions) {
             for (int i=0;i<4;i++){
                 int checkX = x + dx[i];
                 int checkY = y + dy[i];
@@ -1241,8 +1275,58 @@ public class WumpusGameScreen extends ApplicationAdapter {
         return false;
     }
 
-    private boolean isGlitter() {
-        return playerX == goldX && playerY == goldY && !hasGold;
+    public boolean isGlitter(WumpusWorldState state) {
+        return state.playerX == state.goldX && state.playerY == state.goldY && !state.hasGold;
+    }
+
+    private void resetWorldForAgent() {
+        currentGameState.playerX = 0;
+        currentGameState.playerY = 0;
+        currentGameState.playerDirection = Direction.NORTH;
+        currentGameState.hasGold = false; // Agente sempre começa sem o ouro
+        currentGameState.arrowsLeft = NUM_ARROWS;
+        currentGameState.wumpusAlive = true; // Wumpus reaparece
+        currentGameState.score = 0;
+        currentGameState.gameState = GameState.PLAYING;
+        currentGameState.visitedRooms.clear();
+        currentGameState.visitedRooms.add(new Vector2(currentGameState.playerX, currentGameState.playerY));
+
+        // Re-popula o grid com base nas posições originais dos perigos e ouro
+        for (int i = 0; i < WORLD_SIZE; i++) {
+            for (int j = 0; j < WORLD_SIZE; j++) {
+                currentGameState.worldGrid[i][j] = ' ';
+            }
+        }
+        currentGameState.worldGrid[currentGameState.playerX][currentGameState.playerY] = 'P';
+
+        // Lógica para reposicionar o ouro se o agente morreu com ele
+        if (shouldRepositionGoldAfterDeath) {
+            currentGameState.goldX = repositionGoldTargetX;
+            currentGameState.goldY = repositionGoldTargetY;
+            appendToLog("Agente (NN): Ouro reposicionado em (" + currentGameState.goldX + ", " + currentGameState.goldY + ").");
+            shouldRepositionGoldAfterDeath = false; // Reset da flag
+            repositionGoldTargetX = -1; // Reset da posição alvo
+            repositionGoldTargetY = -1; // Reset da posição alvo
+        }
+        // Garante que o ouro esteja no grid na sua posição (original ou reposicionada)
+        currentGameState.worldGrid[currentGameState.goldX][currentGameState.goldY] = 'G';
+
+
+        // Garante que o Wumpus esteja no grid
+        currentGameState.worldGrid[currentGameState.wumpusX][currentGameState.wumpusY] = 'W';
+        //worldGraph.getNode(currentGameState.wumpusX, currentGameState.wumpusY).isObstacle = false; // Garante que não seja um obstáculo se o Wumpus estiver vivo
+
+        // Garante que os poços e morcegos estejam no grid
+        for (Vector2 pit : currentGameState.pitPositions) {
+            currentGameState.worldGrid[(int)pit.x][(int)pit.y] = 'H';
+            //worldGraph.getNode((int)pit.x, (int)pit.y).isObstacle = true; // Garante que seja um obstáculo
+        }
+        /*for (Vector2 bat : currentGameState.batPositions) {
+            currentGameState.worldGrid[(int)bat.x][(int)bat.y] = 'B';
+        }*/
+
+        appendToLog("Agente (NN): Reiniciando jogo na sala (0,0) para continuar o aprendizado.");
+        updatePerceptions();
     }
 
     @Override
@@ -1288,6 +1372,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         hexPassageEastTexture.dispose();
         hexPassageSouthTexture.dispose();
         hexPassageWestTexture.dispose();
+        mapTexture.dispose();
 
         mapScreen.dispose(); // Descarta os recursos da tela do mapa
         batch.dispose();
@@ -1612,9 +1697,9 @@ public class WumpusGameScreen extends ApplicationAdapter {
          */
         public void decideAndPerformAction() {
             // Sentir o ambiente (percepções diretas do jogo, acessadas diretamente)
-            boolean hasStench = isStench(playerX, playerY);
-            boolean hasBreeze = isBreeze(playerX, playerY);
-            boolean hasGlitter = isGlitter();
+            boolean hasStench = isStench(playerX, playerY, currentGameState);
+            boolean hasBreeze = isBreeze(playerX, playerY, currentGameState);
+            boolean hasGlitter = isGlitter(currentGameState);
             boolean wumpusAlive = WumpusGameScreen.this.wumpusAlive;
             int arrowsLeft = WumpusGameScreen.this.arrowsLeft;
             boolean hasGold = WumpusGameScreen.this.hasGold;
@@ -1629,7 +1714,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
             // Regra 1: Se há brilho, pegar o ouro.
             if (hasGlitter) {
-                searchForGold();
+                searchForGold(currentGameState);
                 //appendToLog("Agente: Peguei o ouro!");
                 return;
             }
@@ -1643,11 +1728,11 @@ public class WumpusGameScreen extends ApplicationAdapter {
             // Regra 3: Se há fedor, o Wumpus está vivo e o agente tem flechas, atirar.
             if (hasStench) {
                 if (arrowsLeft > 0) {
-                    shootArrow();
+                    shootArrow(currentGameState);
                 }
                 else {
                     goBack();
-                    moveForward();
+                    moveForward(currentGameState);
                 }
                 //appendToLog("Agente: Senti fedor, atirei uma flecha!");
                 return;
@@ -1656,7 +1741,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
             // Regra 4: Se há brisa (poço próximo), virar para evitar o perigo.
             if (hasBreeze) {
                 turnInto();
-                moveForward();
+                moveForward(currentGameState);
                 //appendToLog("Agente: Senti brisa, virei para a esquerda.");
                 return;
             }
@@ -1673,7 +1758,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
             // Verifica se a próxima célula é válida e ainda não foi visitada
             if (isValidCell(nextX, nextY)) {
-                moveForward();
+                moveForward(currentGameState);
                 //appendToLog("Agente: Movi para frente em (" + nextX + "," + nextY + ").");
             } else {
                 // Se não puder mover para frente (parede ou célula já visitada), virar para tentar outra direção.
@@ -1684,13 +1769,13 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
         private void turnInto() {
             // 0: left, 1: right
-            if (random.nextBoolean()) turnLeft();
-            else turnRight();
+            if (random.nextBoolean()) turnLeft(currentGameState);
+            else turnRight(currentGameState);
         }
         private void goBack() {
-            turnLeft();
-            turnLeft();
-            moveForward();
+            turnLeft(currentGameState);
+            turnLeft(currentGameState);
+            moveForward(currentGameState);
         }
     }
 
@@ -1757,9 +1842,9 @@ public class WumpusGameScreen extends ApplicationAdapter {
          */
         public Action decideAndPerformAction() {
             // 1. Sentir o ambiente e Atualizar o Modelo Interno (Base de Conhecimento)
-            boolean currentHasStench = WumpusGameScreen.this.isStench(playerX, playerY);
-            boolean currentHasBreeze = WumpusGameScreen.this.isBreeze(playerX, playerY);
-            boolean currentHasGlitter = WumpusGameScreen.this.isGlitter();
+            boolean currentHasStench = WumpusGameScreen.this.isStench(playerX, playerY, currentGameState);
+            boolean currentHasBreeze = WumpusGameScreen.this.isBreeze(playerX, playerY, currentGameState);
+            boolean currentHasGlitter = WumpusGameScreen.this.isGlitter(currentGameState);
 
             // Marcar a célula atual como visitada e registrar as percepções
             knowledgeBase[playerX][playerY].visited = true;
@@ -1796,7 +1881,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
             // A) Objetivo Imediato: Pegar Ouro
             if (currentHasGlitter && !hasGold) {
-                WumpusGameScreen.this.searchForGold();
+                WumpusGameScreen.this.searchForGold(currentGameState);
                 WumpusGameScreen.this.appendToLog("Agente (Modelo): Peguei o ouro!");
                 return Action.GRAB_GOLD;
             }
@@ -1848,11 +1933,11 @@ public class WumpusGameScreen extends ApplicationAdapter {
                     if (!isFacing(targetShootX, targetShootY)) {
                         return turnTowards(targetShootX, targetShootY); // Primeiro vira para o alvo
                     }
-                    WumpusGameScreen.this.shootArrow();
+                    WumpusGameScreen.this.shootArrow(currentGameState);
                     WumpusGameScreen.this.appendToLog("Agente (Modelo): Senti fedor, atirei uma flecha na direção " + playerDirection + "!");
                     return Action.SHOOT_ARROW;
                 } else { // Se não encontrou um alvo claro para atirar, mas ainda tem flechas
-                    WumpusGameScreen.this.shootArrow(); // Atira cegamente
+                    WumpusGameScreen.this.shootArrow(currentGameState); // Atira cegamente
                     WumpusGameScreen.this.appendToLog("Agente (Modelo): Senti fedor, atirei uma flecha (sem alvo claro inferido).");
                     return Action.SHOOT_ARROW;
                 }
@@ -1892,7 +1977,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
                 if (targetCell != null) {
                     if (isFacing((int)targetCell.x, (int)targetCell.y)) {
-                        WumpusGameScreen.this.moveForward();
+                        WumpusGameScreen.this.moveForward(currentGameState);
                         WumpusGameScreen.this.appendToLog("Agente (Modelo): Movi para frente para (" + (int)targetCell.x + "," + (int)targetCell.y + ").");
                         return Action.MOVE_FORWARD;
                     } else {
@@ -1921,7 +2006,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
             if (!unvisitedUnknownNeighbors.isEmpty()) {
                 Vector2 targetCell = unvisitedUnknownNeighbors.get(0); // Pega o primeiro como fallback
                 if (isFacing((int)targetCell.x, (int)targetCell.y)) {
-                    WumpusGameScreen.this.moveForward();
+                    WumpusGameScreen.this.moveForward(currentGameState);
                     WumpusGameScreen.this.appendToLog("Agente (Modelo): Movi para uma sala desconhecida (" + (int)targetCell.x + "," + (int)targetCell.y + ").");
                     return Action.MOVE_FORWARD;
                 } else {
@@ -1931,7 +2016,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
 
             // F) Se completamente preso, apenas virar
             WumpusGameScreen.this.appendToLog("Agente (Modelo): Estou preso ou sem opções seguras. Virando para tentar outra coisa.");
-            WumpusGameScreen.this.turnLeft();
+            WumpusGameScreen.this.turnLeft(currentGameState);
             return Action.TURN_LEFT;
         }
 
@@ -1961,36 +2046,768 @@ public class WumpusGameScreen extends ApplicationAdapter {
             int deltaY = targetY - playerY;
 
             if (deltaX > 0) { // Alvo está a Leste
-                if (playerDirection == Direction.NORTH) { WumpusGameScreen.this.turnRight(); return Action.TURN_RIGHT; }
-                if (playerDirection == Direction.SOUTH) { WumpusGameScreen.this.turnLeft(); return Action.TURN_LEFT; }
+                if (playerDirection == Direction.NORTH) { WumpusGameScreen.this.turnRight(currentGameState); return Action.TURN_RIGHT; }
+                if (playerDirection == Direction.SOUTH) { WumpusGameScreen.this.turnLeft(currentGameState); return Action.TURN_LEFT; }
                 // Se já estiver no Leste, isso não deve ser chamado, mas como fallback
                 // se estiver no Oeste, precisa virar duas vezes. Priorizamos uma virada única.
-                WumpusGameScreen.this.turnLeft(); // Ou turnRight, dependendo da rotação
+                WumpusGameScreen.this.turnLeft(currentGameState); // Ou turnRight, dependendo da rotação
                 return Action.TURN_LEFT;
             } else if (deltaX < 0) { // Alvo está a Oeste
-                if (playerDirection == Direction.NORTH) { WumpusGameScreen.this.turnLeft(); return Action.TURN_LEFT; }
-                if (playerDirection == Direction.SOUTH) { WumpusGameScreen.this.turnRight(); return Action.TURN_RIGHT; }
-                WumpusGameScreen.this.turnRight(); // Ou turnLeft
+                if (playerDirection == Direction.NORTH) { WumpusGameScreen.this.turnLeft(currentGameState); return Action.TURN_LEFT; }
+                if (playerDirection == Direction.SOUTH) { WumpusGameScreen.this.turnRight(currentGameState); return Action.TURN_RIGHT; }
+                WumpusGameScreen.this.turnRight(currentGameState); // Ou turnLeft
                 return Action.TURN_RIGHT;
             } else if (deltaY > 0) { // Alvo está ao Norte
-                if (playerDirection == Direction.EAST) { WumpusGameScreen.this.turnLeft(); return Action.TURN_LEFT; }
-                if (playerDirection == Direction.WEST) { WumpusGameScreen.this.turnRight(); return Action.TURN_RIGHT; }
-                WumpusGameScreen.this.turnRight(); // Ou turnLeft
+                if (playerDirection == Direction.EAST) { WumpusGameScreen.this.turnLeft(currentGameState); return Action.TURN_LEFT; }
+                if (playerDirection == Direction.WEST) { WumpusGameScreen.this.turnRight(currentGameState); return Action.TURN_RIGHT; }
+                WumpusGameScreen.this.turnRight(currentGameState); // Ou turnLeft
                 return Action.TURN_RIGHT;
             } else if (deltaY < 0) { // Alvo está ao Sul
-                if (playerDirection == Direction.EAST) { WumpusGameScreen.this.turnRight(); return Action.TURN_RIGHT; }
-                if (playerDirection == Direction.WEST) { WumpusGameScreen.this.turnLeft(); return Action.TURN_LEFT; }
-                WumpusGameScreen.this.turnLeft(); // Ou turnRight
+                if (playerDirection == Direction.EAST) { WumpusGameScreen.this.turnRight(currentGameState); return Action.TURN_RIGHT; }
+                if (playerDirection == Direction.WEST) { WumpusGameScreen.this.turnLeft(currentGameState); return Action.TURN_LEFT; }
+                WumpusGameScreen.this.turnLeft(currentGameState); // Ou turnRight
                 return Action.TURN_LEFT;
             }
 
             // Caso de fallback ou alvo na mesma célula
-            WumpusGameScreen.this.turnLeft();
+            WumpusGameScreen.this.turnLeft(currentGameState);
             return Action.TURN_LEFT;
         }
     }
 
-    public class ReactiveAgentV3 {
+    /**
+     * Representa o estado completo do jogo em um dado momento.
+     * Usado para simulações pelo Algoritmo Genético.
+     * Esta é uma classe aninhada estática para ser independente de uma instância de WumpusWorldGame,
+     * permitindo que o AG a copie livremente.
+     */
+    public static class WumpusWorldState {
+        public int playerX, playerY;
+        public Direction playerDirection;
+        public boolean hasGold;
+        public int arrowsLeft;
+        public boolean wumpusAlive;
+        public int wumpusX, wumpusY;
+        public int goldX, goldY;
+        public Array<Vector2> pitPositions = new Array<>();
+        public Array<Vector2> batPositions = new Array<>();
+        public HashSet<Vector2> visitedRooms;
+        public int score;
+        public GameState gameState;
+        public char[][] worldGrid; // Representa o layout do mundo (Wumpus, Poços, Ouro)
 
+        /**
+         * Cria uma cópia profunda do estado atual. Essencial para simulações.
+         */
+        public WumpusWorldState copy() {
+            WumpusWorldState newState = new WumpusWorldState();
+            newState.playerX = this.playerX;
+            newState.playerY = this.playerY;
+            newState.playerDirection = this.playerDirection;
+            newState.hasGold = this.hasGold;
+            newState.arrowsLeft = this.arrowsLeft;
+            newState.wumpusAlive = this.wumpusAlive;
+            newState.wumpusX = this.wumpusX;
+            newState.wumpusY = this.wumpusY;
+            newState.goldX = this.goldX;
+            newState.goldY = this.goldY;
+            newState.score = this.score;
+            newState.gameState = this.gameState;
+
+            // Cópia profunda de Array<Vector2> e HashSet<Vector2>
+            newState.pitPositions = new Array<>(this.pitPositions);
+            newState.batPositions = new Array<>(this.batPositions);
+            newState.visitedRooms = new HashSet<>(this.visitedRooms);
+
+            // Cópia profunda do grid do mundo
+            newState.worldGrid = new char[WORLD_SIZE][WORLD_SIZE];
+            for (int i = 0; i < WORLD_SIZE; i++) {
+                System.arraycopy(this.worldGrid[i], 0, newState.worldGrid[i], 0, WORLD_SIZE);
+            }
+
+            return newState;
+        }
+    }
+
+    /**
+     * Agente que utiliza um Algoritmo Genético para encontrar uma sequência de ações.
+     * Esta é uma classe interna não estática, permitindo acesso direto aos métodos
+     * de ação e percepção do jogo WumpusWorldGame para simulação.
+     */
+    public class GeneticAgent {
+        // Constantes do Algoritmo Genético
+        private static final int POPULATION_SIZE = 10;
+        private static final int MAX_GENERATIONS = 20;
+        private static final float MUTATION_RATE = 0.03f; // 3% de chance de mutação por ação
+        private static final float CROSSOVER_RATE = 0.7f; // 70% de chance de cruzamento
+        // Comprimento do cromossomo: O suficiente para um caminho considerável.
+        // WORLD_SIZE * WORLD_SIZE * 2 ou 3 para cobrir bastante espaço e viradas.
+        private static final int CHROMOSOME_LENGTH = WORLD_SIZE * WORLD_SIZE * 3;
+
+        // Ações possíveis para o cromossomo
+        public enum Action {
+            MOVE_FORWARD, TURN_LEFT, TURN_RIGHT, SHOOT, GRAB, NO_OP;
+
+            // Retorna uma ação aleatória para a inicialização e mutação
+            public static Action getRandomAction() {
+                Action[] actions = Action.values();
+                // Excluir NO_OP da seleção aleatória para ações reais, se desejado.
+                // Ou incluir para permitir que o AG aprenda "não fazer nada" em certas situações.
+                // Para este AG, incluir NO_OP para ter mais flexibilidade no tamanho real do caminho.
+                return actions[ThreadLocalRandom.current().nextInt(actions.length)];
+            }
+        }
+
+        // Representa um indivíduo na população do Algoritmo Genético
+        private class Chromosome implements Comparable<Chromosome> {
+            Action[] actions; // Sequência de ações
+            float fitness;     // Aptidão do cromossomo
+
+            public Chromosome() {
+                actions = new Action[CHROMOSOME_LENGTH];
+                for (int i = 0; i < CHROMOSOME_LENGTH; i++) {
+                    actions[i] = Action.getRandomAction(); // Inicializa com ações aleatórias
+                }
+                fitness = 0;
+            }
+
+            @Override
+            public int compareTo(Chromosome other) {
+                // Para ordenar do mais apto (maior fitness) para o menos apto
+                return Float.compare(other.fitness, this.fitness);
+            }
+        }
+
+        private List<Action> plannedPath;
+        private int currentActionIndex;
+        private Random random;
+
+        public GeneticAgent() {
+            random = ThreadLocalRandom.current();
+            initializeKnowledgeBase();
+        }
+
+        /**
+         * Inicializa a base de conhecimento do agente.
+         * Para este GA, a "base de conhecimento" principal é a capacidade de simular o ambiente,
+         * mas podemos ter uma memória das salas visitadas durante a simulação para guiar a fitness.
+         * No entanto, como o GA busca um caminho completo, a memória em si é mais para a avaliação.
+         */
+        public void initializeKnowledgeBase() {
+            // Reinicia qualquer estado interno que o agente possa ter acumulado.
+            plannedPath = null;
+            currentActionIndex = 0;
+            // Para GA, não há uma "base de conhecimento" explícita persistente entre chamadas,
+            // pois o algoritmo gera e avalia soluções do zero em cada execução.
+        }
+
+        /**
+         * Avalia a aptidão de um cromossomo simulando suas ações em uma cópia do estado do jogo.
+         * @param initialState O estado inicial do jogo para a simulação.
+         * @param chromosome O cromossomo (sequência de ações) a ser avaliado.
+         * @return A aptidão calculada para o cromossomo.
+         */
+        private float evaluateFitness(WumpusWorldState initialState, Chromosome chromosome) {
+            WumpusWorldState simState = initialState.copy(); // Trabalha em uma cópia para não alterar o jogo real
+            float fitness = 0;
+            boolean goldReached = false;
+            boolean returnedToStartWithGold = false;
+            int initialArrows = simState.arrowsLeft;
+            int movesTaken = 0;
+
+            for (Action action : chromosome.actions) {
+                if (simState.gameState != GameState.PLAYING) {
+                    // Se o jogo terminou na simulação (morte ou vitória), para de simular este cromossomo.
+                    break;
+                }
+
+                // Aplica a ação ao estado simulado
+                switch (action) {
+                    case MOVE_FORWARD:
+                        int prevPlayerX = simState.playerX;
+                        int prevPlayerY = simState.playerY;
+                        moveForward(simState); // Este método agora opera em 'state'
+                        if (simState.playerX == prevPlayerX && simState.playerY == prevPlayerY) {
+                            fitness -= 50; // Grande penalidade por tentar mover para fora do mundo/preso
+                        }
+                        movesTaken++;
+                        fitness -= 1; // Pequena penalidade por cada passo
+                        break;
+                    case TURN_LEFT:
+                        turnLeft(simState);
+                        fitness -= 0.1f; // Pequena penalidade para virar
+                        break;
+                    case TURN_RIGHT:
+                        turnRight(simState);
+                        fitness -= 0.1f; // Pequena penalidade para virar
+                        break;
+                    case SHOOT:
+                        int arrowsBeforeShoot = simState.arrowsLeft;
+                        shootArrow(simState);
+                        if (arrowsBeforeShoot > simState.arrowsLeft) { // Se uma flecha foi usada
+                            fitness -= 10; // Penalidade por usar flecha
+                            if (!simState.wumpusAlive) {
+                                fitness += 200; // Recompensa por matar Wumpus
+                                appendToLog("Agente (Simulação): Wumpus morto na simulação!");
+                            }
+                        } else {
+                            fitness -= 5; // Penalidade por atirar sem sucesso
+                        }
+                        break;
+                    case GRAB:
+                        boolean hadGoldBeforeGrab = simState.hasGold;
+                        searchForGold(simState);
+                        if (simState.hasGold && !hadGoldBeforeGrab) {
+                            fitness += 500; // Grande recompensa por pegar o ouro
+                            goldReached = true;
+                            appendToLog("Agente (Simulação): Ouro pego na simulação!");
+                        } else if (hadGoldBeforeGrab) {
+                            fitness -= 50; // Penalidade por tentar pegar ouro que já tem
+                        } else {
+                            fitness -= 20; // Penalidade por tentar pegar ouro onde não há
+                        }
+                        break;
+                    case NO_OP:
+                        // Sem penalidade ou benefício significativo, útil para padding.
+                        fitness -= 0.5f; // Pequena penalidade para desincentivar NO_OPs desnecessárias.
+                        break;
+                }
+
+                // Penalidades por estado de GAME_OVER
+                if (simState.gameState == GameState.GAME_OVER) {
+                    fitness -= 1000; // Grande penalidade por morrer
+                    break; // Termina a simulação deste cromossomo
+                }
+
+                // Recompensa por vitória
+                if (simState.gameState == GameState.GAME_WON) {
+                    fitness += 10000; // Recompensa massiva por vencer o jogo
+                    returnedToStartWithGold = true;
+                    break; // Termina a simulação deste cromossomo
+                }
+            }
+
+            // Penalidades/recompensas finais baseadas no resultado da simulação
+            if (goldReached && !returnedToStartWithGold) {
+                // Recompensa adicional se pegou o ouro mas não voltou à entrada ainda
+                fitness += 100;
+            }
+
+            // Se o Wumpus ainda estiver vivo e o agente não atirou ou errou, e não venceu o jogo, penalizar.
+            if (simState.wumpusAlive && simState.gameState != GameState.GAME_WON && initialArrows == NUM_ARROWS && currentGameState.wumpusAlive) {
+                // Penalidade por não matar o Wumpus se era uma condição de vitória esperada
+                // (isso é para o caso de o objetivo ser opcional, mas o GA pode aprender a fazê-lo)
+                // Se o wumpus não foi morto e o jogo acabou sem vitória, grande penalidade
+                if (simState.gameState == GameState.PLAYING) { // Se o jogo não terminou, ainda tem chance de matá-lo
+                    fitness -= 50;
+                }
+            }
+
+            // Se não pegou o ouro e não venceu
+            if (!simState.hasGold && simState.gameState != GameState.GAME_WON) {
+                fitness -= 200; // Grande penalidade por não cumprir o objetivo principal
+            }
+
+            return fitness;
+        }
+
+        /**
+         * Executa o Algoritmo Genético para encontrar o melhor caminho.
+         * @return A sequência de ações do cromossomo mais apto.
+         */
+        private List<Action> runGeneticAlgorithm() {
+            List<Chromosome> population = new ArrayList<>();
+            for (int i = 0; i < POPULATION_SIZE; i++) {
+                population.add(new Chromosome());
+            }
+
+            Chromosome bestOverallChromosome = null;
+
+            for (int generation = 0; generation < MAX_GENERATIONS; generation++) {
+                // 1. Avaliação
+                for (Chromosome chromosome : population) {
+                    chromosome.fitness = evaluateFitness(currentGameState, chromosome);
+                }
+
+                // 2. Classificação
+                Collections.sort(population); // Ordena do mais apto para o menos apto
+
+                // Elite: Mantém o melhor cromossomo da geração atual
+                if (bestOverallChromosome == null || population.get(0).fitness > bestOverallChromosome.fitness) {
+                    bestOverallChromosome = population.get(0);
+                    appendToLog("Agente (GA): Nova melhor aptidão: " + String.format("%.2f", bestOverallChromosome.fitness) + " na Geração " + generation);
+                }
+
+                List<Chromosome> newPopulation = new ArrayList<>();
+                // Elitismo: Mantém os 2 melhores da população atual para a próxima geração
+                newPopulation.add(population.get(0));
+                newPopulation.add(population.get(1));
+
+                // Preenche o restante da nova população através de seleção, cruzamento e mutação
+                while (newPopulation.size() < POPULATION_SIZE) {
+                    Chromosome parent1 = selectParent(population);
+                    Chromosome parent2 = selectParent(population);
+
+                    Chromosome child1, child2;
+
+                    // Cruzamento (Crossover)
+                    if (random.nextFloat() < CROSSOVER_RATE) {
+                        Chromosome[] children = crossover(parent1, parent2);
+                        child1 = children[0];
+                        child2 = children[1];
+                    } else {
+                        // Sem cruzamento, filhos são cópias dos pais
+                        child1 = new Chromosome();
+                        System.arraycopy(parent1.actions, 0, child1.actions, 0, CHROMOSOME_LENGTH);
+                        child2 = new Chromosome();
+                        System.arraycopy(parent2.actions, 0, child2.actions, 0, CHROMOSOME_LENGTH);
+                    }
+
+                    // Mutação
+                    mutate(child1);
+                    mutate(child2);
+
+                    newPopulation.add(child1);
+                    if (newPopulation.size() < POPULATION_SIZE) { // Garante que não adicione mais do que o POPULATION_SIZE
+                        newPopulation.add(child2);
+                    }
+                }
+                population = newPopulation;
+            }
+
+            // Após todas as gerações, avalia a aptidão final
+            for (Chromosome chromosome : population) {
+                chromosome.fitness = evaluateFitness(currentGameState, chromosome);
+            }
+            Collections.sort(population); // Ordena novamente para garantir o melhor
+            bestOverallChromosome = population.get(0); // O melhor da última geração ou o melhor geral
+
+            appendToLog("Agente (GA): Algoritmo Genético concluído. Melhor aptidão final: " + String.format("%.2f", bestOverallChromosome.fitness));
+
+            // Retorna o caminho do melhor cromossomo, removendo NO_OPs no final
+            List<Action> finalPath = new ArrayList<>();
+            for (Action action : bestOverallChromosome.actions) {
+                if (action != Action.NO_OP) {
+                    finalPath.add(action);
+                }
+            }
+            return finalPath;
+        }
+
+        /**
+         * Seleciona um pai usando seleção por torneio.
+         * @param population A população atual de cromossomos.
+         * @return O cromossomo selecionado.
+         */
+        private Chromosome selectParent(List<Chromosome> population) {
+            // Tamanho do torneio: 3 a 5 geralmente funciona bem
+            int tournamentSize = 5;
+            Chromosome best = null;
+            for (int i = 0; i < tournamentSize; i++) {
+                int randomIndex = random.nextInt(population.size());
+                Chromosome candidate = population.get(randomIndex);
+                if (best == null || candidate.fitness > best.fitness) {
+                    best = candidate;
+                }
+            }
+            return best;
+        }
+
+        /**
+         * Realiza o cruzamento (crossover) entre dois pais para criar dois filhos.
+         * @param parent1 O primeiro cromossomo pai.
+         * @param parent2 O segundo cromossomo pai.
+         * @return Um array de dois cromossomos filhos.
+         */
+        private Chromosome[] crossover(Chromosome parent1, Chromosome parent2) {
+            Chromosome child1 = new Chromosome();
+            Chromosome child2 = new Chromosome();
+
+            int crossoverPoint = random.nextInt(CHROMOSOME_LENGTH); // Ponto de corte único
+
+            for (int i = 0; i < CHROMOSOME_LENGTH; i++) {
+                if (i < crossoverPoint) {
+                    child1.actions[i] = parent1.actions[i];
+                    child2.actions[i] = parent2.actions[i];
+                } else {
+                    child1.actions[i] = parent2.actions[i];
+                    child2.actions[i] = parent1.actions[i];
+                }
+            }
+            return new Chromosome[]{child1, child2};
+        }
+
+        /**
+         * Aplica mutação a um cromossomo.
+         * @param chromosome O cromossomo a ser mutado.
+         */
+        private void mutate(Chromosome chromosome) {
+            for (int i = 0; i < CHROMOSOME_LENGTH; i++) {
+                if (random.nextFloat() < MUTATION_RATE) {
+                    chromosome.actions[i] = Action.getRandomAction(); // Substitui por uma ação aleatória
+                }
+            }
+        }
+
+        /**
+         * Decide e executa a próxima ação do agente.
+         * Se um caminho não foi planejado ou foi concluído, ele executa o Algoritmo Genético.
+         */
+        public void decideAndPerformAction() {
+            if (plannedPath == null || currentActionIndex >= plannedPath.size()) {
+                appendToLog("Agente (GA): Iniciando planejamento de nova rota...");
+                plannedPath = runGeneticAlgorithm();
+                currentActionIndex = 0;
+                if (plannedPath.isEmpty()) {
+                    appendToLog("Agente (GA): Nenhuma rota viável encontrada ou rota já concluída.");
+                    // Se não há mais ações a serem executadas, pode desativar o agente
+                    isAgentPlaying = false; // Desativa o agente se o plano estiver vazio
+                    return;
+                }
+            }
+
+            // Executa a próxima ação do caminho planejado no estado real do jogo
+            Action nextAction = plannedPath.get(currentActionIndex);
+            currentActionIndex++;
+
+            switch (nextAction) {
+                case MOVE_FORWARD:
+                    moveForward(currentGameState);
+                    break;
+                case TURN_LEFT:
+                    turnLeft(currentGameState);
+                    break;
+                case TURN_RIGHT:
+                    turnRight(currentGameState);
+                    break;
+                case SHOOT:
+                    shootArrow(currentGameState);
+                    break;
+                case GRAB:
+                    searchForGold(currentGameState);
+                    break;
+                case NO_OP:
+                    appendToLog("Agente (GA): No-op (pausa).");
+                    // Pode querer adicionar uma pequena penalidade no fitness se muitos NO_OPs
+                    // são usados em um caminho "otimizado", mas já estamos fazendo isso no evaluateFitness
+                    break;
+            }
+        }
+    }
+    /**
+     * Agent that uses a Simple Neural Network to make decisions.
+     * This is a non-static inner class, allowing direct access to the
+     * WumpusWorldGame action and perception methods.
+     */
+    public class NeuralAgent {
+        // Neural Network Definition
+        private static final int INPUT_NODES = 12; // playerX, playerY, Direction (4), Stench, Breeze, Glitter, HasGold, ArrowsLeft, WumpusAlive
+        private static final int HIDDEN_NODES = 16; // Can be adjusted
+        private static final int OUTPUT_NODES = 5; // MOVE_FORWARD, TURN_LEFT, TURN_RIGHT, SHOOT, GRAB (NO_OP removed)
+
+        private static final float LEARNING_RATE = 0.01f; // Learning rate for weight adjustment
+        private static final float EXPLORATION_RATE = 0.1f; // Exploration rate (epsilon-greedy)
+
+        // Weights and biases of the neural network
+        private float[][] weightsInputHidden; // Weights from input to hidden layer
+        private float[] biasesHidden;         // Biases of the hidden layer
+        private float[][] weightsHiddenOutput; // Weights from hidden to output layer
+        private float[] biasesOutput;         // Biases of the output layer
+
+        private Random random;
+
+        public NeuralAgent() {
+            random = ThreadLocalRandom.current();
+            initializeNetwork();
+        }
+
+        /**
+         * Initializes the weights and biases of the neural network with small random values.
+         */
+        public void initializeNetwork() {
+            weightsInputHidden = new float[INPUT_NODES][HIDDEN_NODES];
+            biasesHidden = new float[HIDDEN_NODES];
+            weightsHiddenOutput = new float[HIDDEN_NODES][OUTPUT_NODES];
+            biasesOutput = new float[OUTPUT_NODES];
+
+            // Initialize weights and biases with small random values
+            for (int i = 0; i < INPUT_NODES; i++) {
+                for (int j = 0; j < HIDDEN_NODES; j++) {
+                    weightsInputHidden[i][j] = (random.nextFloat() * 2 - 1) * 0.1f; // Values between -0.1 and 0.1
+                }
+            }
+            for (int i = 0; i < HIDDEN_NODES; i++) {
+                biasesHidden[i] = (random.nextFloat() * 2 - 1) * 0.1f;
+            }
+            for (int i = 0; i < HIDDEN_NODES; i++) {
+                for (int j = 0; j < OUTPUT_NODES; j++) {
+                    weightsHiddenOutput[i][j] = (random.nextFloat() * 2 - 1) * 0.1f;
+                }
+            }
+            for (int i = 0; i < OUTPUT_NODES; i++) {
+                biasesOutput[i] = (random.nextFloat() * 2 - 1) * 0.1f;
+            }
+            appendToLog("Agent (NN): Neural Network initialized.");
+        }
+
+        /**
+         * Sigmoid activation function.
+         */
+        private float sigmoid(float x) {
+            return 1.0f / (1.0f + (float) Math.exp(-x));
+        }
+
+        /**
+         * Performs the forward pass through the neural network.
+         * @param inputs The input values.
+         * @return The output values of the network.
+         */
+        private float[] feedForward(float[] inputs) {
+            // Input layer to hidden layer
+            float[] hiddenOutputs = new float[HIDDEN_NODES];
+            for (int j = 0; j < HIDDEN_NODES; j++) {
+                float sum = 0;
+                for (int i = 0; i < INPUT_NODES; i++) {
+                    sum += inputs[i] * weightsInputHidden[i][j];
+                }
+                hiddenOutputs[j] = sigmoid(sum + biasesHidden[j]);
+            }
+
+            // Hidden layer to output layer
+            float[] finalOutputs = new float[OUTPUT_NODES];
+            for (int j = 0; j < OUTPUT_NODES; j++) {
+                float sum = 0;
+                for (int i = 0; i < HIDDEN_NODES; i++) {
+                    sum += hiddenOutputs[i] * weightsHiddenOutput[i][j];
+                }
+                finalOutputs[j] = sigmoid(sum + biasesOutput[j]);
+            }
+            return finalOutputs;
+        }
+
+        /**
+         * Converts the current game state into an array of inputs for the neural network.
+         */
+        private float[] getStateInputs(WumpusWorldState state) {
+            float[] inputs = new float[INPUT_NODES];
+            int index = 0;
+
+            // Player position (normalized)
+            inputs[index++] = (float) state.playerX / (WORLD_SIZE - 1);
+            inputs[index++] = (float) state.playerY / (WORLD_SIZE - 1);
+
+            // Player direction (one-hot encoded)
+            inputs[index++] = (state.playerDirection == Direction.NORTH) ? 1.0f : 0.0f;
+            inputs[index++] = (state.playerDirection == Direction.EAST) ? 1.0f : 0.0f;
+            inputs[index++] = (state.playerDirection == Direction.SOUTH) ? 1.0f : 0.0f;
+            inputs[index++] = (state.playerDirection == Direction.WEST) ? 1.0f : 0.0f;
+
+            // Perceptions
+            inputs[index++] = WumpusGameScreen.this.isStench(state.playerX, state.playerY, state) ? 1.0f : 0.0f;
+            inputs[index++] = WumpusGameScreen.this.isBreeze(state.playerX, state.playerY, state) ? 1.0f : 0.0f;
+            inputs[index++] = WumpusGameScreen.this.isGlitter(state) ? 1.0f : 0.0f;
+
+            // Other game states
+            inputs[index++] = state.hasGold ? 1.0f : 0.0f;
+            inputs[index++] = (float) state.arrowsLeft / NUM_ARROWS; // Normalized
+            inputs[index++] = state.wumpusAlive ? 1.0f : 0.0f;
+
+            return inputs;
+        }
+
+        /**
+         * Maps the neural network output index to a game action.
+         */
+        private Action getActionFromOutput(int outputIndex) {
+            switch (outputIndex) {
+                case 0: return Action.MOVE_FORWARD;
+                case 1: return Action.TURN_LEFT;
+                case 2: return Action.TURN_RIGHT;
+                case 3: return Action.SHOOT;
+                case 4: return Action.GRAB;
+                default: return Action.MOVE_FORWARD; // Fallback, should not happen with correct OUTPUT_NODES
+            }
+        }
+
+        /**
+         * Calculates an immediate reward based on the state change.
+         * @param oldState State before the action.
+         * @param newState State after the action.
+         * @return The reward value.
+         */
+        private float calculateImmediateReward(WumpusWorldState oldState, WumpusWorldState newState) {
+            float reward = 0;
+
+            // Rewards and Penalties
+            if (newState.gameState == GameState.GAME_WON) {
+                reward += 10000; // Large reward for winning
+            } else if (newState.gameState == GameState.GAME_OVER) {
+                reward -= 1000; // Large penalty for dying
+            }
+
+            if (newState.hasGold && !oldState.hasGold) {
+                reward += 500; // Reward for picking up gold
+            }
+
+            if (!newState.wumpusAlive && oldState.wumpusAlive) {
+                reward += 200; // Reward for killing Wumpus
+            }
+
+            // Penalties for actions
+            if (newState.playerX != oldState.playerX || newState.playerY != oldState.playerY) {
+                reward -= 1; // Small penalty for movement
+            }
+            if (newState.arrowsLeft < oldState.arrowsLeft) {
+                reward -= 10; // Penalty for using an arrow
+            }
+
+            // Penalty for being in a dangerous room (without dying yet)
+            if (WumpusGameScreen.this.isBreeze(newState.playerX, newState.playerY, newState) && newState.gameState == GameState.PLAYING) {
+                reward -= 5;
+            }
+            if (WumpusGameScreen.this.isStench(newState.playerX, newState.playerY, newState) && newState.gameState == GameState.PLAYING) {
+                reward -= 5;
+            }
+
+            return reward;
+        }
+
+        /**
+         * Adjusts the neural network weights based on the received reward.
+         * This is a simplified form of reinforcement learning.
+         * @param inputs The inputs that led to the action.
+         * @param chosenActionIndex The index of the chosen action.
+         * @param reward The received reward.
+         */
+        private void adjustWeights(float[] inputs, int chosenActionIndex, float reward) {
+            // Recalculate network outputs to get intermediate values
+            float[] hiddenOutputs = new float[HIDDEN_NODES];
+            for (int j = 0; j < HIDDEN_NODES; j++) {
+                float sum = 0;
+                for (int i = 0; i < INPUT_NODES; i++) {
+                    sum += inputs[i] * weightsInputHidden[i][j];
+                }
+                hiddenOutputs[j] = sigmoid(sum + biasesHidden[j]);
+            }
+
+            float[] finalOutputs = new float[OUTPUT_NODES];
+            for (int j = 0; j < OUTPUT_NODES; j++) {
+                float sum = 0;
+                for (int i = 0; i < HIDDEN_NODES; i++) {
+                    sum += hiddenOutputs[i] * weightsHiddenOutput[i][j];
+                }
+                finalOutputs[j] = sigmoid(sum + biasesOutput[j]);
+            }
+
+            // Weight and bias adjustment (very simplified, not full backpropagation)
+            // The idea is that if the reward is positive, we increase the weights that led to that output.
+            // If negative, we decrease them.
+            float targetOutput = (reward > 0) ? 1.0f : 0.0f; // Simplified target: 1 for good, 0 for bad
+            float error = targetOutput - finalOutputs[chosenActionIndex]; // Error for the chosen action
+
+            // Adjust weights from hidden to output layer
+            for (int i = 0; i < HIDDEN_NODES; i++) {
+                weightsHiddenOutput[i][chosenActionIndex] += LEARNING_RATE * error * hiddenOutputs[i];
+            }
+            biasesOutput[chosenActionIndex] += LEARNING_RATE * error;
+
+            // Adjust weights from input to hidden layer (more complex without backprop, simplified)
+            // We propagate the "error" back to the hidden layer.
+            for (int i = 0; i < INPUT_NODES; i++) {
+                for (int j = 0; j < HIDDEN_NODES; j++) {
+                    // This is a heuristically simplified adjustment, not mathematically derived from the gradient.
+                    // For real backpropagation, we would need the derivative of the activation function.
+                    weightsInputHidden[i][j] += LEARNING_RATE * error * inputs[i] * (hiddenOutputs[j] * (1 - hiddenOutputs[j])); // Sigmoid derivative
+                }
+            }
+            for (int i = 0; i < HIDDEN_NODES; i++) {
+                biasesHidden[i] += LEARNING_RATE * error * (hiddenOutputs[i] * (1 - hiddenOutputs[i]));
+            }
+        }
+
+        /**
+         * Decides and executes the agent's next action.
+         */
+        public void decideAndPerformAction() {
+            // Stores the state before the action to calculate reward and for gold repositioning
+            WumpusWorldState oldState = currentGameState.copy();
+
+            // If the game ended, check if the agent should be reset
+            if (currentGameState.gameState != GameState.PLAYING) {
+                if (isAgentPlaying) { // Check if the agent is still in control
+                    // If the agent died with gold, mark to reposition gold
+                    if (currentGameState.gameState == GameState.GAME_OVER && oldState.hasGold) {
+                        WumpusGameScreen.this.shouldRepositionGoldAfterDeath = true;
+                        WumpusGameScreen.this.repositionGoldTargetX = oldState.playerX;
+                        WumpusGameScreen.this.repositionGoldTargetY = oldState.playerY;
+                        // Gold is "dropped" in the current state, so resetWorldForAgent can reposition it
+                        currentGameState.hasGold = false;
+                    }
+                    WumpusGameScreen.this.resetWorldForAgent();
+                } else {
+                    // If the agent is no longer playing (manually deactivated), do nothing.
+                    return;
+                }
+            }
+
+            // 1. Get perceptions from the current game state
+            float[] inputs = getStateInputs(currentGameState);
+
+            // 2. Pass perceptions through the neural network to get action outputs
+            float[] outputs = feedForward(inputs);
+
+            // 3. Choose an action (Epsilon-greedy for exploration)
+            int chosenActionIndex;
+            if (random.nextFloat() < EXPLORATION_RATE) {
+                // Exploration: Choose a random action
+                chosenActionIndex = random.nextInt(OUTPUT_NODES);
+                appendToLog("Agent (NN): Exploring with random action: " + getActionFromOutput(chosenActionIndex));
+            } else {
+                // Exploitation: Choose the action with the highest output
+                float maxOutput = -1.0f;
+                chosenActionIndex = -1;
+                for (int i = 0; i < OUTPUT_NODES; i++) {
+                    if (outputs[i] > maxOutput) {
+                        maxOutput = outputs[i];
+                        chosenActionIndex = i;
+                    }
+                }
+                appendToLog("Agent (NN): Chose action based on network: " + getActionFromOutput(chosenActionIndex) + " (Value: " + String.format("%.2f", maxOutput) + ")");
+            }
+
+            // 4. Execute the chosen action in the real game environment
+            Action chosenAction = getActionFromOutput(chosenActionIndex);
+            switch (chosenAction) {
+                case MOVE_FORWARD:
+                    moveForward(currentGameState);
+                    break;
+                case TURN_LEFT:
+                    turnLeft(currentGameState);
+                    break;
+                case TURN_RIGHT:
+                    turnRight(currentGameState);
+                    break;
+                case SHOOT:
+                    shootArrow(currentGameState);
+                    break;
+                case GRAB:
+                    searchForGold(currentGameState);
+                    break;
+                // NO_OP removed
+            }
+
+            // 5. Calculate reward and adjust neural network weights
+            float reward = calculateImmediateReward(oldState, currentGameState);
+            adjustWeights(inputs, chosenActionIndex, reward);
+            appendToLog("Agent (NN): Reward received: " + String.format("%.2f", reward));
+
+            // If the game ended AFTER this action, the next call to decideAndPerformAction()
+            // will restart the world via `resetWorldForAgent()`.
+        }
+
+        // Mapping of index to Action enum (for readability)
+        private enum Action {
+            MOVE_FORWARD, TURN_LEFT, TURN_RIGHT, SHOOT, GRAB; // NO_OP removed
+        }
     }
 }

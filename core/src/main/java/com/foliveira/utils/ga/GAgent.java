@@ -21,17 +21,13 @@ public class GAgent {
     }
 
     public void makeRandomRuleSet(){
-        /*for (Perception p : Perception.values()) {
-            Action a = Action.getRandomAction();
-            Rule rule = new Rule(p, a);
-            rules.add(rule);
-        }*/
-        for (int i=0; i<32; i++) {
+        int chromosomeLength = WumpusGameScreen.WORLD_SIZE * WumpusGameScreen.WORLD_SIZE;
+        for (int i=0; i<chromosomeLength; i++) {
             Action a = Action.getRandomAction();
             Rule rule = new Rule(i, a);
             rules.add(rule);
         }
-        this.fitness = 0;
+        //this.fitness = 0;
     }
     public Action getAction(int perception){
         for (Rule rule : rules) {
@@ -70,35 +66,42 @@ public class GAgent {
             switch (rule.action) {
                 case MOVE_FORWARD:
                     gameScreen.moveForward(simState);
-                    fitness -= 10;
+                    this.fitness = simState.score;
+                    //fitness -= 10;
                     break;
                 case TURN_LEFT:
                     gameScreen.turnLeft(simState);
-                    fitness -= 10;
+                    this.fitness = simState.score;
+                    //fitness -= 10;
                     break;
                 case TURN_RIGHT:
                     gameScreen.turnRight(simState);
-                    fitness -= 10;
+                    this.fitness = simState.score;
+                    //fitness -= 10;
                     break;
                 case GRAB:
-                    boolean hadGoldBeforeGrab = simState.hasGold;
+                    //boolean hadGoldBeforeGrab = simState.hasGold;
                     gameScreen.searchForGold(simState);
-                    if (simState.hasGold && !hadGoldBeforeGrab) {
+                    this.fitness = simState.score;
+                    /*if (simState.hasGold && !hadGoldBeforeGrab) {
                         fitness += 1000; // Grande recompensa por pegar o ouro
                     } else {
                         fitness -= 50; // Penalidade por tentar pegar ouro onde não há
-                    }
+                    }*/
                     break;
                 case SHOOT:
                     gameScreen.shootArrow(simState);
-                    if (!simState.wumpusAlive) fitness += 1000;
-                    fitness -= 50;
+                    this.fitness = simState.score;
+                    //System.out.println(simState.wumpusAlive);
+                    //if (!simState.wumpusAlive) fitness += 1000;
+                    //fitness -= 50;
                     break;
             }
 
             movesTaken++;
 
-            System.out.print("action: " + rule.action + " ");
+            //System.out.print("action: " + rule.action + " ");
+
 
             // Penalidades por estado de GAME_OVER
             if (simState.gameState == WumpusGameScreen.GameState.GAME_OVER) {
@@ -114,55 +117,7 @@ public class GAgent {
             }
         }
 
-        /*while (simState.gameState == WumpusGameScreen.GameState.PLAYING && movesTaken <= 20) {
-            // checar a perception da sala e aplicar a action correspondente
-            Action action = getAction(updatePerception(simState));
-            switch (action) {
-                case MOVE_FORWARD:
-                    gameScreen.moveForward(simState);
-                    fitness -= 10;
-                    break;
-                case TURN_LEFT:
-                    gameScreen.turnLeft(simState);
-                    fitness -= 10;
-                    break;
-                case TURN_RIGHT:
-                    gameScreen.turnRight(simState);
-                    fitness -= 10;
-                    break;
-                case GRAB:
-                    boolean hadGoldBeforeGrab = simState.hasGold;
-                    gameScreen.searchForGold(simState);
-                    if (simState.hasGold && !hadGoldBeforeGrab) {
-                        fitness += 1000; // Grande recompensa por pegar o ouro
-                    } else {
-                        fitness -= 50; // Penalidade por tentar pegar ouro onde não há
-                    }
-                    break;
-                case SHOOT:
-                    gameScreen.shootArrow(simState);
-                    if (!simState.wumpusAlive) fitness += 1000;
-                    fitness -= 50;
-                    break;
-            }
 
-            movesTaken++;
-
-            System.out.print("action: " + action + " ");
-
-            // Penalidades por estado de GAME_OVER
-            if (simState.gameState == WumpusGameScreen.GameState.GAME_OVER) {
-                fitness -= 1000; // Grande penalidade por morrer
-                break; // Termina a simulação deste cromossomo
-            }
-
-            // Recompensa por vitória
-            if (simState.gameState == WumpusGameScreen.GameState.GAME_WON) {
-                fitness += 1000; // Recompensa massiva por vencer o jogo
-                returnedToStartWithGold = true;
-                break; // Termina a simulação deste cromossomo
-            }
-        }*/
 
         if (simState.hasGold && !returnedToStartWithGold) {
             // Recompensa adicional se pegou o ouro mas não voltou à entrada
@@ -179,9 +134,9 @@ public class GAgent {
             fitness -= 200; // Grande penalidade por não cumprir o objetivo principal
         }
 
-        this.fitness = fitness;
 
-        System.out.print("\nfitness: " + fitness + "\n");
+        System.out.print("Fitness: " + fitness + "\n");
+        //return simState.score;
     }
 
     public int getFitness() {

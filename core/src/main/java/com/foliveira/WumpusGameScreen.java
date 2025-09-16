@@ -48,8 +48,8 @@ import java.util.List;
 import java.util.Collections;
 
 public class WumpusGameScreen extends ApplicationAdapter {
-    public static final int WORLD_SIZE = 4;
-    private static final int NUM_PITS = 3;
+    public static final int WORLD_SIZE = 4; // NxN matrix
+    public static final int NUM_PITS = 3;
     public static final int NUM_BATS = 2;
     private static final int NUM_WUMPUS = 1;
     public static final int NUM_ARROWS = 1;
@@ -141,9 +141,9 @@ public class WumpusGameScreen extends ApplicationAdapter {
     private HashSet<Vector2> visitedRooms; // Para rastrear salas visitadas
     private int score; // Placar do jogo
 
-//    private ReactiveAgent agent;
-    private ReactiveAgentV2 agent;
-    private GeneticAgent geneticAgent;
+    private ReactiveAgent agent;
+    private ReactiveAgentV2 agentV2;
+    //private GeneticAgent geneticAgent;
     private NeuralAgent neuralAgent;
     private boolean isAgentPlaying = false;
     private float agentActionTimer = 0f;
@@ -198,7 +198,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
         gameAreaHeight = BASE_VIRTUAL_HEIGHT - (logHeight + infoBarHeight);
         gameAreaY = infoBarHeight;
 
-        //agent = new ReactiveAgentV2();
+        agent = new ReactiveAgent();
+        agentV2 = new ReactiveAgentV2();
         //geneticAgent = new GeneticAgent();
         setupUI();
         neuralAgent = new NeuralAgent();
@@ -504,6 +505,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     }
 
     public void initializeWorld(){
+        System.out.println(WORLD_SIZE + "  " + NUM_PITS);
         currentGameState = new WumpusWorldState();
         currentGameState.worldGrid = new char[WORLD_SIZE][WORLD_SIZE];
         for (int i=0;i<WORLD_SIZE;i++) {
@@ -606,10 +608,11 @@ public class WumpusGameScreen extends ApplicationAdapter {
             Gdx.app.log(WumpusGameScreen.class.getName(), "valid layout generated after " + attempts + " attempts");
         }
         //geneticAgent.initializeKnowledgeBase();
-        //neuralAgent.initializeNetwork();
+        neuralAgent.initializeNetwork();
         //GENETIC ALGORITHM=============================================================================
-        ga.initializePopulation(this);
-        ga.run();
+
+        //ga.initializePopulation(this);
+        //ga.run();
     }
 
     private boolean isPitAt(int x, int y, WumpusWorldState state) {
@@ -725,6 +728,8 @@ public class WumpusGameScreen extends ApplicationAdapter {
             agentActionTimer -= Gdx.graphics.getDeltaTime();
             if (agentActionTimer <= 0) {
                 neuralAgent.decideAndPerformAction(); // Agente decide e executa a próxima ação
+                //agent.decideAndPerformAction();
+                //agentV2.decideAndPerformAction();
                 agentActionTimer = AGENT_ACTION_DELAY;
             }
         }
@@ -1061,13 +1066,14 @@ public class WumpusGameScreen extends ApplicationAdapter {
             checkRoomContent(state);
             updatePerceptions();
         } else {
-            state.score -= 2;
+            state.score -= 10;
             appendToLog(Messages.AGENT_HIT_WALL);
         }
     }
 
     public void turnLeft(WumpusWorldState state) {
         if (state.gameState != GameState.PLAYING) return;
+        state.score -= 10;
         switch (state.playerDirection) {
             case NORTH:
                 state.playerDirection = Direction.WEST;
@@ -1087,6 +1093,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
     }
 
     public void turnRight(WumpusWorldState state) {
+        state.score -=10;
         if (state.gameState != GameState.PLAYING) return;
         switch (state.playerDirection) {
             case NORTH:
@@ -1111,7 +1118,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
         if (state.arrowsLeft > 0) {
             String message = Messages.SHOOT_ARROW_ACTION;
             state.arrowsLeft--;
-            state.score -= 10;
+            state.score -= 50;
 
             int currentX = state.playerX;
             int currentY = state.playerY;
@@ -1139,7 +1146,7 @@ public class WumpusGameScreen extends ApplicationAdapter {
                     //appendToLog(Messages.ARROW_HIT_WUMPUS);
                     message = message.concat(Messages.ARROW_HIT_WUMPUS);
                     state.wumpusAlive = false;
-                    state.score += 200;
+                    state.score += 1000;
                     state.worldGrid[wumpusX][wumpusY] = ' ';
                     if (state.hasGold && state.playerX == 0 && state.playerY == 0) {
                         state.gameState = GameState.GAME_WON;
@@ -1162,16 +1169,18 @@ public class WumpusGameScreen extends ApplicationAdapter {
         if (state.gameState != GameState.PLAYING) return;
         if (state.playerX == state.goldX && state.playerY == state.goldY && !state.hasGold) {
             state.hasGold = true;
-            state.score += 500;
+            state.score += 1000;
             state.worldGrid[goldX][goldY] = ' ';
             appendToLog(Messages.FOUND_GOLD);
             defaultInfoBarMessage = Messages.GOT_GOLD_INFO;
             updateInfoBar(defaultInfoBarMessage);
             updatePerceptions();
         } else if (state.hasGold) {
+            state.score -= 50;
             appendToLog("You already got the gold");
         } else {
             appendToLog(Messages.FOUND_NOTHING);
+            state.score -= 50;
         }
     }
 
